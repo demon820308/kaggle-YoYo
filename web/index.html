@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>H3 Kaggle 控制台</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1f2630;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 10px 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+  }
+  .brand { font-size: 16px; font-weight: 700; letter-spacing: 0.3px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--muted);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.green { background: var(--green); }
+  .dot.yellow { background: var(--yellow); }
+  .dot.red { background: var(--red); }
+  .spacer { flex: 1; }
+  button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button.danger { color: var(--red); border-color: rgba(239,68,68,0.4); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .tabs-bar {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 0 18px; display: flex; align-items: center; gap: 4px;
+  }
+  .tab-btn {
+    background: transparent; border: none; border-bottom: 2px solid transparent;
+    border-radius: 0; padding: 10px 14px; color: var(--muted); font-weight: 500;
+  }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+  main { flex: 1; padding: 16px 18px 90px; max-width: 1400px; width: 100%; margin: 0 auto; }
+  .grid-2 { display: grid; grid-template-columns: 1.05fr 1fr; gap: 16px; }
+  @media (max-width: 980px) { .grid-2 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin-bottom: 14px;
+  }
+  .card h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--text); }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  textarea, input[type="text"], input[type="password"], select {
+    width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit;
+  }
+  textarea { min-height: 150px; resize: vertical; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row > * { flex: 1; }
+  .row > .shrink { flex: 0 0 auto; }
+  .subtabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .subtabs button.active { background: var(--accent); border-color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .err { font-size: 12px; color: var(--red); margin-top: 6px; }
+  .warn { font-size: 12px; color: var(--yellow); margin-top: 6px; }
+  .ok { font-size: 12px; color: var(--green); margin-top: 6px; }
+  .checklist { list-style: none; padding: 0; margin: 8px 0; }
+  .checklist li { padding: 4px 0; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  .history-item {
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+    margin-bottom: 8px; background: var(--panel-2); cursor: pointer;
+  }
+  .history-item.selected { border-color: var(--accent); }
+  .sentence-row {
+    display: flex; align-items: center; gap: 10px; padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .sentence-row:last-child { border-bottom: none; }
+  audio { height: 32px; max-width: 280px; }
+  .drawer {
+    position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel);
+    border-top: 1px solid var(--border); z-index: 20;
+  }
+  .drawer-head {
+    padding: 8px 18px; display: flex; align-items: center; gap: 10px; cursor: pointer;
+  }
+  .drawer-body {
+    height: 220px; overflow-y: auto; padding: 8px 18px 12px;
+    background: #090c10; font-family: Consolas, monospace; font-size: 12px; display: none;
+  }
+  .drawer.open .drawer-body { display: block; }
+  .log-line { white-space: pre-wrap; word-break: break-all; }
+  .log-line.error { color: var(--red); }
+  .log-line.warn { color: var(--yellow); }
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: none;
+    align-items: center; justify-content: center; z-index: 50;
+  }
+  .modal-bg.show { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; width: 420px; max-width: 92vw; }
+  .chip-group { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; align-items: center; }
+  .chip-label { font-size: 11px; color: var(--muted); min-width: 44px; }
+  .chip {
+    background: var(--bg); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 9px; font-size: 12px; cursor: pointer;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .toolbar button, .toolbar select { padding: 4px 8px; font-size: 12px; width: auto; }
+  .badge {
+    display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 4px;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+  }
+  .badge.ok { color: var(--green); border-color: rgba(34,197,94,0.4); }
+  .badge.warn { color: var(--yellow); border-color: rgba(234,179,8,0.4); }
+  details.adv { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-top: 10px; background: rgba(255,255,255,0.02); }
+  details.adv summary { cursor: pointer; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .chk-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); cursor: pointer; margin: 0; }
+  .chk-inline input { width: auto; margin: 0; }
+  .step-box {
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+    background: rgba(255,255,255,0.02); margin-bottom: 10px;
+  }
+  .step-box h4 { margin: 0 0 6px; font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: 700; flex: 0 0 auto;
+  }
+  .step-box ol, .step-box ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: var(--muted); }
+  .step-box li { margin-bottom: 3px; }
+  .step-box a { color: var(--accent); text-decoration: none; }
+  .step-box a:hover { text-decoration: underline; }
+  .acct-pill-select {
+    background: transparent; color: var(--text); border: none; font-size: 12px; font-weight: 600;
+    cursor: pointer; padding: 0 4px; width: auto; outline: none;
+  }
+  .acct-pill-select option { background: var(--panel); color: var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">H3 控制台</span>
+  <span class="pill" id="ownerPill">
+    Kaggle:
+    <strong id="ownerEmptyText" style="color:var(--yellow);">未连接</strong>
+    <select id="headerAccountSelect" class="acct-pill-select" style="display:none" title="快速切换 Kaggle 账号"></select>
+  </span>
+  <span class="pill" id="quotaPill">尚未连接 Kaggle</span>
+  <span class="pill"><span class="dot" id="lockDot"></span><span id="lockText">未连接</span></span>
+  <span class="spacer"></span>
+  <button id="guideBtn" title="查看注册账号 / 手机验证 / 创建 API Key 说明">接入指南</button>
+  <button id="tokenBtn">账号设置: <span id="tokenMask">未连接</span></button>
+  <button id="refreshBtn" disabled>刷新额度</button>
+</header>
+
+<div class="tabs-bar">
+  <button class="tab-btn active" data-tab="voice">语音生成 (Kaggle OmniVoice)</button>
+  <button class="tab-btn" data-tab="video">视频生成 (Kaggle 挂载版)</button>
+  <button class="tab-btn" data-tab="colab" id="colabTabBtn" style="display:none">视频生成 (Colab·备用)</button>
+</div>
+
+<main>
+  <!-- INITIALIZATION ONBOARDING -->
+  <section id="onboardingCard" class="card" style="display:none; border-color: rgba(59,130,246,0.5);">
+    <div class="row" style="margin-bottom:12px;">
+      <div>
+        <h3 style="margin:0; font-size:15px;">初始化连接：绑定你的 Kaggle 账号与 API Key</h3>
+        <div class="hint">连接后即可直接在 Kaggle 免费 T4 GPU 上运行 OmniVoice，无需手动建 Notebook 或上传模型权重。</div>
+      </div>
+      <span class="spacer"></span>
+      <button class="shrink" id="closeGuideBtn" style="display:none">收起指南</button>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <div class="step-box">
+          <h4><span class="step-num">1</span> 注册并查看 Kaggle 用户名</h4>
+          <ol>
+            <li>打开 <a href="https://www.kaggle.com/" target="_blank" rel="noopener noreferrer">kaggle.com</a>，点击右上角 <strong>Register</strong>（可用 Google 账号或邮箱注册）。</li>
+            <li>登录后点击右上角头像 → <strong>Your Profile</strong>，查看浏览器地址栏：<code>https://www.kaggle.com/&lt;用户名&gt;</code>。</li>
+            <li>把网址最后那段 <strong>&lt;用户名&gt;</strong> 填到右侧（注意不是显示昵称，例如 <code>demon820308</code>）。</li>
+          </ol>
+        </div>
+
+        <div class="step-box">
+          <h4><span class="step-num">2</span> 验证手机号（开启 GPU 与联网必需）</h4>
+          <ol>
+            <li>点击右上角头像 → <strong>Settings</strong>，找到 <strong>Phone verification</strong> 栏目。</li>
+            <li>选择国家区号（如中国大陆选 <code>+86</code>），输入手机号并填写短信验证码。</li>
+            <li><strong>说明：</strong>未完成手机验证的账号无法调用免费 T4 GPU（每周 30 小时）和内核联网下载模型。</li>
+          </ol>
+        </div>
+
+        <div class="step-box" style="margin-bottom:0;">
+          <h4><span class="step-num">3</span> 创建 <code>KGAT_</code> API Key</h4>
+          <ol>
+            <li>在 <strong>Settings</strong> 页面向下滚动到 <strong>API</strong> 区域。</li>
+            <li>点击 <strong>Generate New Token</strong>（或 <strong>Create New Token</strong>），复制生成的新版 Token（必须以 <code>KGAT_</code> 开头）。</li>
+            <li><strong>提示：</strong>不要填写旧版 <code>kaggle.json</code> 内容；如果以后本周 30h 额度用完，可在右上角「账号设置」添加另一个 Kaggle 账号随时切换。</li>
+          </ol>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; justify-content:space-between;">
+        <div>
+          <label>Kaggle 用户名（个人主页 URL 里的用户名）</label>
+          <input type="text" id="onboardUsername" placeholder="例如：your_kaggle_username" style="margin-bottom:10px;" />
+
+          <label>Kaggle API Key（以 KGAT_ 开头）</label>
+          <input type="password" id="onboardToken" placeholder="KGAT_..." style="margin-bottom:10px;" />
+
+          <label>备注名（可选，方便多账号区分）</label>
+          <input type="text" id="onboardLabel" placeholder="例如：主号 / 备用号1" style="margin-bottom:10px;" />
+
+          <div style="margin-top:10px;">
+            <label class="chk-inline">
+              <input type="checkbox" id="onboardAutoDeployChk" checked />
+              保存后自动检测并部署 OmniVoice 到该账号（若云端已部署则自动跳过，不耗费额度）
+            </label>
+          </div>
+
+          <details class="adv" style="margin-top:8px;">
+            <summary>高级环境选项（新注册账号保持默认即可）</summary>
+            <div style="margin-top:8px;">
+              <label class="chk-inline">
+                <input type="checkbox" id="onboardPinnedImgChk" />
+                使用预设 BYOD 镜像（新注册账号请保持不勾选，使用 Kaggle 默认 GPU 环境）
+              </label>
+            </div>
+          </details>
+
+          <div class="hint" style="margin-top:10px;">
+            凭据仅加密限权保存在本机 <code>data/kaggle_accounts.json</code>（仅当前系统用户可读写），绝不写入日志或上传第三方。
+          </div>
+          <div id="onboardMsg" class="err" style="display:none"></div>
+        </div>
+
+        <div class="row" style="margin-top:14px;">
+          <button class="primary" id="onboardSubmitBtn">验证并连接 Kaggle</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="deployProgressBox" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--border);"></div>
+  </section>
+
+  <!-- VOICE TAB -->
+  <section id="tab-voice">
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <div class="subtabs">
+            <button id="modeDesignBtn" class="active">声音设计 (yoyo-omnivoice)</button>
+            <button id="modeCloneBtn">声音克隆 (yoyo-omnivoice-clone)</button>
+            <button id="modeAutoBtn">自动声线 (Auto Voice)</button>
+          </div>
+
+          <div id="designFields">
+            <div class="row" style="margin-bottom:8px;">
+              <div>
+                <label>声线预设</label>
+                <select id="instructPreset"></select>
+              </div>
+              <div class="shrink" style="align-self:flex-end;padding-bottom:6px;">
+                <label class="chk-inline"><input type="checkbox" id="allowMixedInstruct" /> 允许中英混写</label>
+              </div>
+            </div>
+
+            <label>声线 Instruct（逗号分隔属性，同类目建议选 1 个）</label>
+            <input type="text" id="instructInput" value="女，青年，中音调" placeholder="例如：女，青年，四川话 或 female, british accent" />
+            <div id="instructErr" class="err" style="display:none"></div>
+            <div id="instructWarn" class="warn" style="display:none"></div>
+
+            <details class="adv" open>
+              <summary>声线属性构建器（点击拼接）</summary>
+              <div id="attrBuilder" style="margin-top:8px;"></div>
+            </details>
+          </div>
+
+          <div id="cloneFields" style="display:none">
+            <label>声音来源（上传参考音频 或 复用声音库 .pt）</label>
+            <select id="cloneVoiceSelect" style="margin-bottom:8px;">
+              <option value="">上传新参考音频...</option>
+            </select>
+
+            <div id="cloneUploadBox">
+              <div class="row" style="margin-bottom:6px;">
+                <input type="file" id="refFileInput" accept=".m4a,.wav,.mp3,.flac,.opus" />
+              </div>
+              <div id="refMetaInfo" class="hint">支持 m4a / wav / mp3 / flac / opus，3–10 秒最佳；仅存本地，绝不外发第三方</div>
+              <div style="margin-top:8px;">
+                <label>参考音频文本 ref_text（可选；留空则由 Whisper 自动转写）</label>
+                <input type="text" id="refTextInput" placeholder="留空自动转写；手填可提高首字与断句稳定性" />
+              </div>
+            </div>
+            <div id="cloneSavedHint" class="ok" style="display:none"></div>
+            <div id="crossLangHint" class="hint" style="margin-top:6px;">提示：若参考音频语言与合成目标语言不同，将进行跨语种克隆（会保留一定原口音特征）。</div>
+          </div>
+
+          <div id="autoFields" style="display:none">
+            <div class="hint" style="padding:10px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,0.02);">
+              自动声线模式：不传参考音频也不传声线描述，由 OmniVoice 自动挑选匹配当前文本的说话人声线。
+            </div>
+          </div>
+
+          <!-- Shared generation params -->
+          <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border);">
+            <div class="row" style="margin-bottom:8px;">
+              <div>
+                <label>目标语言 (646 种语言)</label>
+                <select id="languageSelect"></select>
+              </div>
+              <div id="customLangWrap" style="display:none">
+                <label>自定义语言名 / 代码</label>
+                <input type="text" id="customLanguageInput" placeholder="如 Cantonese, yue, Japanese" />
+              </div>
+              <div>
+                <label>时长控制方式</label>
+                <select id="timingModeSelect">
+                  <option value="speed">语速调节 (0.50× – 2.00×)</option>
+                  <option value="duration">固定单句时长 (秒)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row" style="margin-bottom:6px;">
+              <div id="speedCtrlWrap">
+                <label>语速: <strong id="speedVal">0.85</strong>×</label>
+                <input type="range" id="speedSlider" min="0.5" max="2.0" step="0.05" value="0.85" style="width:100%" />
+              </div>
+              <div id="durationCtrlWrap" style="display:none">
+                <label>单句固定时长 (秒，会覆盖语速)</label>
+                <input type="number" id="durationInput" min="0.5" max="60" step="0.5" value="5.0" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;" />
+              </div>
+              <div>
+                <label>推理步数 (num_step)</label>
+                <select id="numStepSelect">
+                  <option value="32">32 步（标准质量）</option>
+                  <option value="16">16 步（快速推理）</option>
+                </select>
+              </div>
+            </div>
+
+            <details class="adv">
+              <summary>高级推理参数与文本预处理</summary>
+              <div class="row" style="margin-top:8px;">
+                <div>
+                  <label>句间停顿 (秒)</label>
+                  <input type="number" id="pauseSecInput" min="0" max="5" step="0.1" value="0.5" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;" />
+                </div>
+                <div>
+                  <label>引导强度 (guidance_scale)</label>
+                  <input type="number" id="guidanceInput" min="0.5" max="5" step="0.5" value="2.0" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;" />
+                </div>
+              </div>
+              <div class="row" style="margin-top:8px;">
+                <label class="chk-inline"><input type="checkbox" id="normalizeTextChk" /> 开启数字/日期转读法 (normalize_text)</label>
+                <label class="chk-inline"><input type="checkbox" id="denoiseChk" checked /> 人声降噪 (denoise)</label>
+                <label class="chk-inline"><input type="checkbox" id="postprocessChk" checked /> 裁剪首尾长静音</label>
+              </div>
+            </details>
+          </div>
+
+          <label style="margin-top:12px;">合成文本（每行一句，共 <strong id="lineCount">3</strong> 句 · <span id="charCount">0</span> 字）</label>
+          <div class="toolbar">
+            <select id="nonverbalSelect">
+              <option value="">插入副语言标签...</option>
+            </select>
+            <button type="button" class="shrink" id="quickLaughBtn">+ [laughter]</button>
+            <button type="button" class="shrink" id="quickSighBtn">+ [sigh]</button>
+            <button type="button" class="shrink" id="pinyinBtn" title="替换选中汉字或插入大写拼音+声调，如 ZHE2">拼音纠音</button>
+            <button type="button" class="shrink" id="cmuBtn" title="插入英文 CMU 音素，如 [B EY1 S]">CMU音素</button>
+            <button type="button" class="shrink" id="splitTextBtn">长文本智能切句</button>
+          </div>
+          <textarea id="voiceText">同学们好，今天我们来学习二次函数的图像和性质。
+我们先看这个例子，它的开口向上，顶点坐标是负一和二。
+把这三个点代入一般式，就能求出函数的解析式。</textarea>
+          <div id="textHints" class="hint">支持内联控制：笑声 <code>[laughter]</code>、多音字大写拼音如 <code>打ZHE2</code>、英文音素 <code>[B EY1 S]</code>。</div>
+          <div id="textDigitTip" class="warn" style="display:none"></div>
+          <div id="textTagWarn" class="warn" style="display:none"></div>
+
+          <div class="row" style="margin-top:12px;">
+            <button class="primary" id="generateVoiceBtn">生成语音</button>
+            <span class="shrink hint" id="voiceJobStatus">就绪</span>
+          </div>
+          <div id="voiceGuardErr" class="err" style="display:none"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="row" style="margin-bottom:8px;">
+            <h3 style="margin:0">本次结果与 5 项校验</h3>
+            <span class="spacer"></span>
+            <button class="shrink" id="saveVoiceLibBtn" style="display:none">存为声音库</button>
+            <button class="shrink" id="downloadSrtBtn" style="display:none">下载 SRT</button>
+            <button class="shrink" id="downloadAllBtn" style="display:none">下载全部 (.zip)</button>
+          </div>
+          <div id="voiceResultEmpty" class="hint">提交语音生成或从下方历史选择一条即可查看校验与试听。</div>
+          <div id="voiceResultBox" style="display:none">
+            <div id="voiceMetaSummary" class="hint" style="margin-bottom:6px;"></div>
+            <div id="voiceExtraNotices" style="margin-bottom:8px;"></div>
+            <ul class="checklist" id="voiceChecks"></ul>
+            <div style="margin:10px 0;">
+              <label>完整拼接音频</label>
+              <audio id="fullAudioPlayer" controls style="width:100%;max-width:100%;"></audio>
+            </div>
+            <div class="row" style="margin-bottom:4px;">
+              <label style="margin:0">逐句音频列表</label>
+              <span class="spacer"></span>
+              <button class="shrink" id="regenSelectedBtn" style="display:none;font-size:12px;padding:3px 8px;">带入选中/失败句重生成</button>
+            </div>
+            <div id="sentenceList"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="margin-bottom:8px;">
+            <h3 style="margin:0">我的声音库（复用 .pt / 声线预设）</h3>
+            <span class="spacer"></span>
+            <button class="shrink" id="saveCurrentDesignBtn" style="font-size:12px;padding:3px 8px;">保存当前设计声线</button>
+          </div>
+          <div id="voiceLibraryList" class="hint">暂无已保存声音</div>
+        </div>
+
+        <div class="card">
+          <h3>生成历史</h3>
+          <div id="voiceHistoryList" class="hint">暂无记录</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VIDEO TAB -->
+  <section id="tab-video" style="display:none">
+    <div class="card">
+      <div class="row">
+        <h3 style="margin:0">Kaggle 私有数据集就绪状态（C2 接入前哨检查）</h3>
+        <span class="spacer"></span>
+        <button class="shrink" id="checkDatasetsBtn">检查数据集就绪</button>
+      </div>
+      <div id="datasetsBox" class="hint" style="margin-top:10px;">点击「检查数据集就绪」实时查询 h3-models-shared / pika / hyperflow。</div>
+    </div>
+    <div class="card">
+      <h3>视频批处理控制台（C2 阶段接入）</h3>
+      <p class="hint">待 G1（<code>--disable-dynamic-vram</code> + 内存采样）和 G2 实测通过后，在此接入 Pika / HyperFlow 批量提交、A/B 测速、MP4 实测预览与周额度折算。</p>
+      <label style="margin-top:12px;">
+        <input type="checkbox" id="colabToggle" /> 启用备用 Colab 页签（需账号具备付费计算单元）
+      </label>
+    </div>
+  </section>
+
+  <!-- COLAB FALLBACK TAB -->
+  <section id="tab-colab" style="display:none">
+    <div class="card">
+      <h3>Colab H3 备用通道</h3>
+      <p class="hint">原 Colab 规格书中的 OAuth + <code>/tun/m/</code> 方案已保留为备用后端；当前账号计算单元为 0，购买单元后再启用。</p>
+    </div>
+  </section>
+</main>
+
+<div class="drawer" id="logDrawer">
+  <div class="drawer-head" id="logToggle">
+    <strong>日志抽屉</strong>
+    <span class="hint" id="logCount">0 行</span>
+    <span class="spacer"></span>
+    <button class="shrink" id="copyLogBtn">复制日志</button>
+    <button class="shrink" id="clearLogBtn">清空</button>
+  </div>
+  <div class="drawer-body" id="logBody"></div>
+</div>
+
+<div class="modal-bg" id="accountModal">
+  <div class="modal" style="width:560px; max-height:88vh; overflow-y:auto;">
+    <div class="row" style="margin-bottom:8px;">
+      <h3 style="margin:0">Kaggle 账号管理与切换</h3>
+      <span class="spacer"></span>
+      <button class="shrink" id="accountModalCloseBtn">关闭</button>
+    </div>
+    <p class="hint" style="margin-top:0">凭据仅保存于本机 <code>data/kaggle_accounts.json</code>（限当前用户权限），绝不写入日志。不同 Kaggle 账号每周各自拥有 30 小时免费 GPU 额度。</p>
+
+    <div style="margin-bottom:14px;">
+      <label>已连接的账号（点击「切换」即可更换运行账号）</label>
+      <div id="accountListBox" class="hint">暂无已连接账号</div>
+    </div>
+
+    <div style="border-top:1px solid var(--border); padding-top:12px;">
+      <h4 style="margin:0 0 8px; font-size:13px;">新增 / 更新 Kaggle 账号</h4>
+      <div class="row" style="margin-bottom:8px;">
+        <div>
+          <label>Kaggle 用户名（URL 里的用户名）</label>
+          <input type="text" id="modalUsername" placeholder="如：demon820308" />
+        </div>
+        <div>
+          <label>备注名（可选）</label>
+          <input type="text" id="modalLabel" placeholder="如：主号 / 备用号1" />
+        </div>
+      </div>
+      <label>API Key（以 KGAT_ 开头）</label>
+      <input type="password" id="modalToken" placeholder="KGAT_..." style="margin-bottom:8px;" />
+      <div class="row" style="margin-bottom:8px;">
+        <label class="chk-inline"><input type="checkbox" id="modalActivateChk" checked /> 添加后立即切换到此账号</label>
+        <label class="chk-inline"><input type="checkbox" id="modalAutoDeployChk" checked /> 若未部署则自动部署 OmniVoice</label>
+        <label class="chk-inline"><input type="checkbox" id="modalPinnedImgChk" /> 使用预设 BYOD 镜像（新号勿选）</label>
+      </div>
+      <div id="modalDeployProgressBox" style="display:none; margin-bottom:10px;"></div>
+
+      <details class="adv" style="margin-bottom:10px;">
+        <summary>查看：如何创建新 Kaggle 账号、验证手机与生成 API Key</summary>
+        <ol style="margin:8px 0 0; padding-left:18px; font-size:12px; color:var(--muted);">
+          <li>打开 <a href="https://www.kaggle.com/" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">kaggle.com</a> 点击 <strong>Register</strong> 注册；登录后点右上角头像 → <strong>Your Profile</strong>，地址栏 <code>kaggle.com/&lt;用户名&gt;</code> 即为用户名。</li>
+          <li>点右上角头像 → <strong>Settings</strong> → <strong>Phone verification</strong>，绑定手机号并输入短信验证码（<strong>必须验证</strong>才能使用 GPU 与联网）。</li>
+          <li>在 <strong>Settings</strong> 向下找到 <strong>API</strong> 区域，点击 <strong>Generate New Token</strong>，复制以 <code>KGAT_</code> 开头的 Token 填入上方。</li>
+        </ol>
+      </details>
+
+      <div id="accountModalErr" class="err" style="display:none"></div>
+      <div class="row" style="justify-content:flex-end;">
+        <button class="shrink primary" id="modalAddAccountBtn">验证并添加</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let currentMode = "design";
+let currentRefId = null;
+let currentState = null;
+let selectedRun = null;
+let timerInterval = null;
+let jobStartTime = null;
+let caps = null;
+let voiceLibrary = [];
+let attrState = { gender: "女", age: "青年", pitch: "中音调", style: "", dialect: "", accent: "" };
+let pauseTouched = false;
+let speedTouched = false;
+
+function escHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function getEffectiveLanguage() {
+  const sel = $("languageSelect").value;
+  if (sel === "__custom__") return $("customLanguageInput").value.trim() || null;
+  return sel || null;
+}
+
+function updateTextMetrics() {
+  const raw = $("voiceText").value;
+  const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  $("lineCount").textContent = lines.length;
+  $("charCount").textContent = lines.join("").length;
+
+  // Digit detection hint
+  const hasDigits = /\d/.test(raw);
+  if (hasDigits && !$("normalizeTextChk").checked) {
+    $("textDigitTip").innerHTML = '检测到数字，未开启数字转读法（可能会逐字读）。<a href="#" id="enableTnLink" style="color:var(--accent)">点击一键开启</a>';
+    $("textDigitTip").style.display = "block";
+    const link = $("enableTnLink");
+    if (link) {
+      link.onclick = (e) => {
+        e.preventDefault();
+        $("normalizeTextChk").checked = true;
+        updateTextMetrics();
+      };
+    }
+  } else {
+    $("textDigitTip").style.display = "none";
+  }
+
+  // Unknown bracket tag warning (ignore known 13 nonverbal tags and uppercase CMU phonemes like [B EY1 S])
+  const knownTags = new Set((caps?.nonverbal_tags || []).map(t => t.tag));
+  const matches = raw.match(/\[[^\[\]\r\n]+\]/g) || [];
+  const unknown = matches.filter(m => !knownTags.has(m) && !/^\[[A-Z0-9\s]+\]$/.test(m));
+  if (unknown.length) {
+    $("textTagWarn").textContent = `未识别标签（可能原样读出）：${[...new Set(unknown)].join(" ")}`;
+    $("textTagWarn").style.display = "block";
+  } else if (lines.length > 50) {
+    $("textTagWarn").textContent = `当前共 ${lines.length} 句，超过单次 50 句上限，请分批或精简。`;
+    $("textTagWarn").style.display = "block";
+  } else {
+    $("textTagWarn").style.display = "none";
+  }
+}
+$("voiceText").addEventListener("input", updateTextMetrics);
+$("normalizeTextChk").addEventListener("change", updateTextMetrics);
+
+function insertAtCursor(text, replaceSelection = false) {
+  const ta = $("voiceText");
+  const start = ta.selectionStart ?? ta.value.length;
+  const end = ta.selectionEnd ?? ta.value.length;
+  const before = ta.value.slice(0, start);
+  const after = ta.value.slice(end);
+  const ins = replaceSelection ? text : (ta.value.slice(start, end) + text);
+  ta.value = before + ins + after;
+  const pos = before.length + ins.length;
+  ta.focus();
+  ta.setSelectionRange(pos, pos);
+  updateTextMetrics();
+}
+
+function buildInstructFromAttrs() {
+  const useEn = Boolean(attrState.accent && !attrState.dialect);
+  const parts = [];
+  const pick = (cat, val) => {
+    if (!val || !caps?.attrs?.[cat]) return null;
+    const found = caps.attrs[cat].find(x => x.zh === val || x.en === val);
+    return found ? (useEn ? found.en : found.zh) : val;
+  };
+  ["gender", "age", "pitch", "style"].forEach(cat => {
+    const v = pick(cat, attrState[cat]);
+    if (v) parts.push(v);
+  });
+  if (attrState.dialect) parts.push(attrState.dialect);
+  if (attrState.accent) parts.push(attrState.accent);
+  const sep = useEn ? ", " : "，";
+  $("instructInput").value = parts.join(sep);
+  checkInstruct();
+}
+
+function renderAttrBuilder() {
+  if (!caps?.attrs) return;
+  const box = $("attrBuilder");
+  const rows = [
+    { key: "gender", title: "性别", items: caps.attrs.gender.map(x => ({ val: x.zh, label: x.zh })) },
+    { key: "age", title: "年龄", items: caps.attrs.age.map(x => ({ val: x.zh, label: x.zh })) },
+    { key: "pitch", title: "音调", items: caps.attrs.pitch.map(x => ({ val: x.zh, label: x.zh })) },
+    { key: "style", title: "风格", items: caps.attrs.style.map(x => ({ val: x.zh, label: x.zh })) },
+    { key: "dialect", title: "方言", items: caps.attrs.dialect.map(x => ({ val: x, label: x })) },
+    { key: "accent", title: "英文口音", items: caps.attrs.accent.map(x => ({ val: x, label: x.replace(" accent", "") })) },
+  ];
+  box.innerHTML = "";
+  rows.forEach(r => {
+    const row = document.createElement("div");
+    row.className = "chip-group";
+    const lbl = document.createElement("span");
+    lbl.className = "chip-label";
+    lbl.textContent = r.title;
+    row.appendChild(lbl);
+    r.items.forEach(it => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip" + (attrState[r.key] === it.val ? " active" : "");
+      btn.textContent = it.label;
+      btn.onclick = () => {
+        attrState[r.key] = attrState[r.key] === it.val ? "" : it.val;
+        if (r.key === "dialect" && attrState.dialect) attrState.accent = "";
+        if (r.key === "accent" && attrState.accent) attrState.dialect = "";
+        renderAttrBuilder();
+        buildInstructFromAttrs();
+      };
+      row.appendChild(btn);
+    });
+    box.appendChild(row);
+  });
+}
+
+function checkInstruct() {
+  if (currentMode !== "design") {
+    $("instructErr").style.display = "none";
+    $("instructWarn").style.display = "none";
+    return true;
+  }
+  const val = $("instructInput").value.trim();
+  const hasCjk = /[\u4e00-\u9fff]/.test(val);
+  const hasEng = /[A-Za-z]/.test(val);
+  const allowMixed = $("allowMixedInstruct").checked;
+  if (!val) {
+    $("instructErr").textContent = "声线 instruct 不能为空";
+    $("instructErr").style.display = "block";
+    return false;
+  }
+  if (!allowMixed && hasCjk && hasEng) {
+    $("instructErr").textContent = "拦截：声线 instruct 不许中英混写，请改为纯中文/纯英文，或勾选「允许中英混写」。";
+    $("instructErr").style.display = "block";
+    return false;
+  }
+  $("instructErr").style.display = "none";
+
+  const warns = [];
+  if (allowMixed && hasCjk && hasEng) warns.push("已开启中英混写（OmniVoice 会自动归一化）。");
+  const lang = (getEffectiveLanguage() || "").toLowerCase();
+  if (attrState.dialect && lang && lang !== "chinese") warns.push("中文方言仅在合成中文文本时生效。");
+  if (attrState.accent && lang && lang !== "english") warns.push("英文口音仅在合成英文文本时生效。");
+  if (lang && lang !== "chinese" && lang !== "english") {
+    warns.push("提示：声音设计仅在中英文指令上训练，小语种建议改用声音克隆或自动声线。");
+  }
+  if (warns.length) {
+    $("instructWarn").textContent = warns.join(" ");
+    $("instructWarn").style.display = "block";
+  } else {
+    $("instructWarn").style.display = "none";
+  }
+  return true;
+}
+
+$("instructPreset").addEventListener("change", () => {
+  const idx = $("instructPreset").value;
+  if (idx === "") return;
+  const p = caps?.presets?.[Number(idx)];
+  if (!p) return;
+  $("instructInput").value = p.instruct;
+  if (p.language && $("languageSelect").querySelector(`option[value="${p.language}"]`)) {
+    $("languageSelect").value = p.language;
+    $("customLangWrap").style.display = "none";
+  }
+  checkInstruct();
+});
+$("instructInput").addEventListener("input", checkInstruct);
+$("allowMixedInstruct").addEventListener("change", checkInstruct);
+
+$("languageSelect").addEventListener("change", () => {
+  $("customLangWrap").style.display = $("languageSelect").value === "__custom__" ? "block" : "none";
+  checkInstruct();
+});
+$("customLanguageInput").addEventListener("input", checkInstruct);
+
+$("timingModeSelect").addEventListener("change", () => {
+  const isDur = $("timingModeSelect").value === "duration";
+  $("speedCtrlWrap").style.display = isDur ? "none" : "block";
+  $("durationCtrlWrap").style.display = isDur ? "block" : "none";
+});
+$("speedSlider").addEventListener("input", () => {
+  speedTouched = true;
+  $("speedVal").textContent = Number($("speedSlider").value).toFixed(2);
+});
+$("pauseSecInput").addEventListener("input", () => { pauseTouched = true; });
+
+// Toolbar handlers
+$("nonverbalSelect").addEventListener("change", () => {
+  const tag = $("nonverbalSelect").value;
+  if (tag) insertAtCursor(tag);
+  $("nonverbalSelect").value = "";
+});
+$("quickLaughBtn").addEventListener("click", () => insertAtCursor("[laughter]"));
+$("quickSighBtn").addEventListener("click", () => insertAtCursor("[sigh]"));
+$("pinyinBtn").addEventListener("click", () => {
+  const ta = $("voiceText");
+  const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
+  const py = prompt(sel ? `将选中的「${sel}」替换为大写拼音+声调（例如 ZHE2 / SHE2 / ZHE1）：` : "输入大写拼音+声调（例如 ZHE2）：", "ZHE2");
+  if (py && py.trim()) insertAtCursor(py.trim().toUpperCase(), Boolean(sel));
+});
+$("cmuBtn").addEventListener("click", () => {
+  const ta = $("voiceText");
+  const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
+  const ph = prompt(sel ? `将选中的「${sel}」替换为 CMU 音素（如 B EY1 S）：` : "输入 CMU 音素（不含方括号，如 B EY1 S）：", "B EY1 S");
+  if (ph && ph.trim()) {
+    const clean = ph.trim().replace(/^\[|\]$/g, "").toUpperCase();
+    insertAtCursor(`[${clean}]`, Boolean(sel));
+  }
+});
+$("splitTextBtn").addEventListener("click", () => {
+  const raw = $("voiceText").value.trim();
+  if (!raw) return;
+  const chunks = raw
+    .replace(/\r?\n+/g, "\n")
+    .split(/(?<=[。！？!?；;])\s*|\n+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+  const out = [];
+  chunks.forEach(c => {
+    if (c.length <= 55) {
+      out.push(c);
+    } else {
+      const subs = c.split(/(?<=[，,])\s*/).filter(Boolean);
+      let buf = "";
+      subs.forEach(sub => {
+        if ((buf + sub).length > 48 && buf) {
+          out.push(buf);
+          buf = sub;
+        } else {
+          buf += sub;
+        }
+      });
+      if (buf) out.push(buf);
+    }
+  });
+  $("voiceText").value = out.join("\n");
+  updateTextMetrics();
+});
+
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    ["voice", "video", "colab"].forEach(t => {
+      $("tab-" + t).style.display = btn.dataset.tab === t ? "block" : "none";
+    });
+  });
+});
+
+function setMode(mode) {
+  currentMode = mode;
+  $("modeDesignBtn").classList.toggle("active", mode === "design");
+  $("modeCloneBtn").classList.toggle("active", mode === "clone");
+  $("modeAutoBtn").classList.toggle("active", mode === "auto");
+  $("designFields").style.display = mode === "design" ? "block" : "none";
+  $("cloneFields").style.display = mode === "clone" ? "block" : "none";
+  $("autoFields").style.display = mode === "auto" ? "block" : "none";
+  if (!speedTouched) {
+    const defSpeed = mode === "clone" ? 1.0 : 0.85;
+    $("speedSlider").value = defSpeed;
+    $("speedVal").textContent = defSpeed.toFixed(2);
+  }
+  if (!pauseTouched) {
+    $("pauseSecInput").value = mode === "clone" ? "0.4" : "0.5";
+  }
+  checkInstruct();
+}
+$("modeDesignBtn").addEventListener("click", () => setMode("design"));
+$("modeCloneBtn").addEventListener("click", () => setMode("clone"));
+$("modeAutoBtn").addEventListener("click", () => setMode("auto"));
+
+$("cloneVoiceSelect").addEventListener("change", () => {
+  const vid = $("cloneVoiceSelect").value;
+  if (vid) {
+    $("cloneUploadBox").style.display = "none";
+    const item = voiceLibrary.find(x => x.voice_id === vid);
+    $("cloneSavedHint").textContent = `将直接复用声音库「${item?.name || vid}」的 voice_prompt.pt，跳过 ffmpeg 与 Whisper 转写。`;
+    $("cloneSavedHint").style.display = "block";
+  } else {
+    $("cloneUploadBox").style.display = "block";
+    $("cloneSavedHint").style.display = "none";
+  }
+});
+
+$("refFileInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $("refMetaInfo").textContent = "正在探测音频时长...";
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/voice/probe-ref", { method: "POST", body: fd });
+  const data = await res.json();
+  if (!res.ok) {
+    currentRefId = null;
+    $("refMetaInfo").className = "err";
+    $("refMetaInfo").textContent = data.detail || "音频探测失败";
+    return;
+  }
+  currentRefId = data.ref_id;
+  const dur = data.duration_sec !== null ? `${data.duration_sec} 秒` : "未知时长";
+  $("refMetaInfo").className = data.warning ? "warn" : "ok";
+  $("refMetaInfo").textContent = `${data.filename} · ${dur} · ${(data.size_bytes/1024).toFixed(1)} KB` + (data.warning ? ` (${data.warning})` : " (最佳区间)");
+});
+
+let manualGuideOpen = false;
+
+function renderQuota(q) {
+  const configured = Boolean(currentState && currentState.token_configured);
+  const busy = Boolean((q && q.reserved_sec > 0) || (currentState && currentState.active_job));
+  if (!configured) {
+    $("quotaPill").textContent = "尚未连接 Kaggle";
+    $("lockDot").className = "dot red";
+    $("lockText").textContent = "未连接";
+    $("generateVoiceBtn").disabled = true;
+    $("headerAccountSelect").disabled = true;
+    return;
+  }
+  if (!q) {
+    $("quotaPill").textContent = currentState?.quota_error ? "额度读取失败" : "未读取到额度";
+  } else {
+    const hrs = (q.used_sec / 3600).toFixed(2);
+    $("quotaPill").innerHTML = `GPU: <strong>${Math.round(q.used_sec)}s</strong> / ${Math.round(q.allowed_sec)}s (${hrs}h) · reserved: <strong>${q.reserved_sec}s</strong>`;
+  }
+  $("lockDot").className = "dot " + (busy ? "yellow" : "green");
+  $("lockText").textContent = busy ? "任务占用中" : "空闲";
+  $("generateVoiceBtn").disabled = busy;
+  $("headerAccountSelect").disabled = busy;
+}
+
+let deployUI = {
+  visible: false,
+  owner: "",
+  stage: "idle",
+  startedAt: null,
+  result: null,
+  error: null,
+  logs: [],
+};
+
+function getDeployStepIndex(stage) {
+  const map = {
+    precheck: 0,
+    checking: 1,
+    pushing: 1,
+    queued: 2,
+    running: 3,
+    fetching: 4,
+    reconcile: 4,
+    done: 5,
+    failed: -1,
+  };
+  return map[stage] ?? 0;
+}
+
+function renderDeployProgress() {
+  const boxes = [$("deployProgressBox"), $("modalDeployProgressBox")].filter(Boolean);
+  if (!deployUI.visible) {
+    boxes.forEach(b => { b.style.display = "none"; b.innerHTML = ""; });
+    return;
+  }
+
+  const steps = [
+    "1. 验证 Kaggle 账号与剩余 GPU 配额",
+    "2. 推送 OmniVoice 统一内核 (yoyo-omnivoice)",
+    "3. 等待 Kaggle 分配免费 Tesla T4 GPU (queued)",
+    "4. 云端安装 omnivoice、加载 k2-fsa/OmniVoice 并首次出音自检",
+    "5. 拉回日志、校验 24kHz 音频并标记账号就绪",
+  ];
+
+  const isDone = deployUI.stage === "done";
+  const isFail = deployUI.stage === "failed";
+  const activeIdx = getDeployStepIndex(deployUI.stage);
+  const pct = isDone ? 100 : (isFail ? 100 : Math.min(92, Math.max(12, activeIdx * 20 + 12)));
+  const elapsed = deployUI.startedAt ? Math.max(0, Math.round((Date.now() - deployUI.startedAt) / 1000)) : 0;
+
+  const listHtml = steps.map((label, idx) => {
+    let icon = "○";
+    let color = "var(--muted)";
+    if (isDone || (activeIdx > idx)) {
+      icon = "✔";
+      color = "var(--green)";
+    } else if (isFail && idx === Math.max(0, activeIdx)) {
+      icon = "✘";
+      color = "var(--red)";
+    } else if (!isFail && idx === activeIdx) {
+      icon = "⏳";
+      color = "var(--yellow)";
+    }
+    return `<li style="color:${color};"><span>${icon}</span><span>${escHtml(label)}</span></li>`;
+  }).join("");
+
+  const barColor = isFail ? "var(--red)" : (isDone ? "var(--green)" : "var(--accent)");
+  const headerTxt = isDone
+    ? `账号 ${escHtml(deployUI.owner)} 部署成功！`
+    : (isFail ? `账号 ${escHtml(deployUI.owner)} 部署未完成` : `正在为账号 ${escHtml(deployUI.owner)} 部署 OmniVoice（已用时 ${elapsed}s）`);
+
+  let footerHtml = "";
+  if (isDone && deployUI.result) {
+    const di = deployUI.result.deploy_info || {};
+    const run = deployUI.result.run || {};
+    const audioUrl = (run.run_id && di.full_wav) ? `/api/voice/audio/${run.run_id}/${di.full_wav}` : "";
+    footerHtml =
+      `<div class="ok" style="margin-top:8px;">已就绪！GPU: ${escHtml(di.gpu || "Tesla T4")} · 装包 ${di.pip_install_sec ?? "-"}s · 加载模型 ${di.model_load_sec ?? "-"}s</div>` +
+      (audioUrl ? `<div style="margin-top:8px;"><label>部署自检试听（"你好，OmniVoice 部署成功。"）</label><audio controls src="${audioUrl}" style="width:100%;max-width:100%;"></audio></div>` : "") +
+      `<div class="row" style="margin-top:10px; justify-content:flex-end;"><button type="button" class="shrink primary deploy-finish-btn">收起向导，开始生成语音</button></div>`;
+  } else if (isFail) {
+    footerHtml =
+      `<div class="err" style="margin-top:8px;">${escHtml(deployUI.error || "部署失败，请打开底部日志抽屉查看详情。")}</div>` +
+      `<div class="row" style="margin-top:10px; justify-content:flex-end;"><button type="button" class="shrink deploy-retry-btn">重试部署</button></div>`;
+  } else {
+    footerHtml = `<div class="hint" style="margin-top:6px;">提示：Kaggle 内核在云端运行期间约需 40–60 秒且不实时回传子日志，完成后会自动拉回详细耗时。</div>`;
+  }
+
+  const logTail = deployUI.logs.slice(-4).map(l => `<div>${escHtml(l)}</div>`).join("");
+  const html =
+    `<div style="border:1px solid var(--border); border-radius:8px; padding:12px; background:rgba(255,255,255,0.02);">` +
+    `<div class="row" style="margin-bottom:8px;"><strong>${headerTxt}</strong></div>` +
+    `<div style="height:6px; background:var(--bg); border-radius:999px; overflow:hidden; margin-bottom:8px;"><div style="height:100%; width:${pct}%; background:${barColor}; transition:width 0.3s;"></div></div>` +
+    `<ul class="checklist" style="margin:6px 0;">${listHtml}</ul>` +
+    (logTail ? `<div style="background:#090c10; border-radius:6px; padding:6px 8px; font-family:Consolas,monospace; font-size:11px; color:var(--muted); margin-top:6px;">${logTail}</div>` : "") +
+    footerHtml +
+    `</div>`;
+
+  boxes.forEach(b => {
+    b.style.display = "block";
+    b.innerHTML = html;
+    const finBtn = b.querySelector(".deploy-finish-btn");
+    if (finBtn) {
+      finBtn.onclick = () => {
+        deployUI.visible = false;
+        manualGuideOpen = false;
+        if (currentState) applyState(currentState);
+        renderDeployProgress();
+      };
+    }
+    const retryBtn = b.querySelector(".deploy-retry-btn");
+    if (retryBtn) {
+      retryBtn.onclick = () => startAccountDeploy(deployUI.owner, true);
+    }
+  });
+}
+
+function renderActiveJob(job) {
+  if (!job) {
+    $("voiceJobStatus").textContent = (currentState && currentState.token_configured) ? "就绪" : "请先完成上方 Kaggle 账号连接";
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  } else {
+    jobStartTime = job.created_at * 1000;
+    const isDeploy = job.params?.deploy || job.kind === "部署 OmniVoice";
+    if (isDeploy) {
+      deployUI.visible = true;
+      deployUI.owner = job.owner || deployUI.owner;
+      deployUI.stage = job.state;
+      deployUI.startedAt = jobStartTime;
+    }
+    const updateClock = () => {
+      const sec = Math.max(0, Math.round((Date.now() - jobStartTime) / 1000));
+      const ownerTag = job.owner ? `[${job.owner}] ` : "";
+      $("voiceJobStatus").textContent = `${ownerTag}${job.kind} · 状态: ${job.state} · 已用时 ${sec}s`;
+      if (isDeploy && deployUI.visible && deployUI.stage !== "done" && deployUI.stage !== "failed") {
+        renderDeployProgress();
+      }
+    };
+    updateClock();
+    if (!timerInterval) timerInterval = setInterval(updateClock, 1000);
+  }
+  if (currentState) renderQuota(currentState.quota);
+  if (deployUI.visible) renderDeployProgress();
+}
+
+function renderAccountList(accounts) {
+  const box = $("accountListBox");
+  if (!accounts || !accounts.length) {
+    box.innerHTML = '<div class="hint">暂无已连接账号，请在下方填写 Kaggle 用户名与 KGAT_ API Key。</div>';
+    return;
+  }
+  box.innerHTML = "";
+  accounts.forEach(a => {
+    const div = document.createElement("div");
+    div.className = "history-item" + (a.active ? " selected" : "");
+    div.style.cursor = "default";
+    const title = a.label ? `${escHtml(a.label)} (${escHtml(a.username)})` : escHtml(a.username);
+    const badge = a.active ? '<span class="badge ok">当前使用中</span>' : '';
+    const deployBadge = a.deployed
+      ? '<span class="badge ok">已部署 OmniVoice</span>'
+      : '<span class="badge warn">未部署</span>';
+    const imgBadge = a.use_pinned_image ? '<span class="badge">BYOD镜像</span>' : '';
+    const switchBtn = a.active ? '' : `<button class="shrink acct-switch-btn">切换</button>`;
+    const deployBtn = a.deployed
+      ? ''
+      : `<button class="shrink primary acct-deploy-btn">立即部署</button><button class="shrink acct-probe-btn" title="仅查询云端是否已存在内核，不消耗 GPU">检测线上</button>`;
+    div.innerHTML =
+      `<div class="row"><strong>${title}</strong> ${badge} ${deployBadge} ${imgBadge} <span class="spacer"></span> ${deployBtn} ${switchBtn} <button class="shrink danger acct-del-btn">删除</button></div>` +
+      `<div class="hint">用户名: <code>${escHtml(a.username)}</code> · Key: <code>${escHtml(a.token_masked)}</code>${a.deployed_at ? ` · 部署于 ${escHtml(a.deployed_at)}` : ""}</div>`;
+    const sw = div.querySelector(".acct-switch-btn");
+    if (sw) sw.onclick = () => switchKaggleAccount(a.username);
+    const dp = div.querySelector(".acct-deploy-btn");
+    if (dp) dp.onclick = () => startAccountDeploy(a.username, false);
+    const pr = div.querySelector(".acct-probe-btn");
+    if (pr) pr.onclick = () => probeRemoteAccount(a.username);
+    div.querySelector(".acct-del-btn").onclick = async () => {
+      if (!confirm(`确认移除本地保存的 Kaggle 账号「${a.username}」？`)) return;
+      const res = await fetch(`/api/accounts/${encodeURIComponent(a.username)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) { alert(data.detail || "删除失败"); return; }
+      applyState(data.state);
+    };
+    box.appendChild(div);
+  });
+}
+
+function applyState(state) {
+  currentState = state;
+  const accounts = state.accounts || [];
+  const configured = Boolean(state.token_configured);
+  $("refreshBtn").disabled = !configured;
+
+  if (configured && accounts.length) {
+    $("ownerEmptyText").style.display = "none";
+    const sel = $("headerAccountSelect");
+    sel.style.display = "inline-block";
+    sel.innerHTML = "";
+    accounts.forEach(a => {
+      const opt = document.createElement("option");
+      opt.value = a.username;
+      const deployTag = a.deployed ? "✔" : "未部署";
+      opt.textContent = (a.label ? `${a.label} (${a.username})` : a.username) + ` [${deployTag}]`;
+      if (a.active || a.username === state.owner) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    $("tokenMask").textContent = `${state.owner} (${accounts.length}个账号)`;
+  } else if (configured) {
+    $("ownerEmptyText").style.display = "inline";
+    $("ownerEmptyText").style.color = "var(--text)";
+    $("ownerEmptyText").textContent = state.owner || "已配置";
+    $("headerAccountSelect").style.display = "none";
+    $("tokenMask").textContent = state.token_masked;
+  } else {
+    $("ownerEmptyText").style.display = "inline";
+    $("ownerEmptyText").style.color = "var(--yellow)";
+    $("ownerEmptyText").textContent = "未连接";
+    $("headerAccountSelect").style.display = "none";
+    $("tokenMask").textContent = "未连接";
+  }
+
+  const showOnboarding = !configured || manualGuideOpen || deployUI.visible;
+  $("onboardingCard").style.display = showOnboarding ? "block" : "none";
+  $("closeGuideBtn").style.display = configured ? "inline-block" : "none";
+
+  $("colabToggle").checked = Boolean(state.settings?.colab_fallback_enabled);
+  $("colabTabBtn").style.display = $("colabToggle").checked ? "inline-block" : "none";
+  renderAccountList(accounts);
+  renderActiveJob(state.active_job);
+}
+
+async function switchKaggleAccount(username) {
+  const res = await fetch("/api/accounts/switch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert(data.detail || "切换失败");
+    if (currentState) applyState(currentState);
+    return;
+  }
+  applyState(data.state);
+}
+
+function modeLabel(m) {
+  return m === "clone" ? "声音克隆" : (m === "auto" ? "自动声线" : "声音设计");
+}
+
+function showRun(run) {
+  selectedRun = run;
+  $("voiceResultEmpty").style.display = "none";
+  $("voiceResultBox").style.display = "block";
+  $("downloadAllBtn").style.display = "inline-block";
+  $("downloadSrtBtn").style.display = (run.sentence_items || []).some(s => s.filename) ? "inline-block" : "none";
+  const v = run.verification || {};
+  const canSaveLib = run.mode === "design" || (run.mode === "clone" && v.has_voice_prompt);
+  $("saveVoiceLibBtn").style.display = canSaveLib ? "inline-block" : "none";
+
+  const t = v.timings || {};
+  const timingBits = [];
+  if (t.model_load_sec != null) timingBits.push(`加载 ${t.model_load_sec}s`);
+  if (t.prompt_encode_sec != null) timingBits.push(`编码 ${t.prompt_encode_sec}s`);
+  if (t.total_infer_sec != null) timingBits.push(`推理 ${t.total_infer_sec}s`);
+  const timingStr = timingBits.length ? ` · [${timingBits.join(" / ")}]` : "";
+  const speedOrDur = run.duration ? `duration=${run.duration}s` : `speed=${run.speed ?? 1.0}`;
+  const langStr = run.language ? ` · ${run.language}` : "";
+  const ownerStr = run.owner ? ` · 账号:${run.owner}` : "";
+  $("voiceMetaSummary").textContent = `${run.created_at}${ownerStr} · ${modeLabel(run.mode)}${langStr} · ${speedOrDur} · ${run.sentences.length} 句 · 耗用 ${run.gpu_seconds_used}s GPU${timingStr}`;
+
+  const notices = [];
+  if (v.fallback_used) notices.push(`<div class="warn">⚠️ 已触发 Whisper-small 回退</div>`);
+  if (v.tn_fallback) notices.push(`<div class="warn">⚠️ <code>omnivoice[tn]</code> 未生效，数字转读法已自动降级关闭</div>`);
+  if (v.unsupported_params && v.unsupported_params.length) {
+    notices.push(`<div class="warn">⚠️ 当前版本不支持参数，已自动跳过：${escHtml(v.unsupported_params.join(", "))}</div>`);
+  }
+  if (v.used_saved_prompt) notices.push(`<div class="ok">✔ 已复用声音库 voice_prompt.pt（跳过 Whisper）</div>`);
+  if (v.resolved_ref_text) {
+    notices.push(`<div class="hint">识别/使用参考文本：<code>${escHtml(v.resolved_ref_text)}</code> <a href="#" id="fillRefTextLink" style="color:var(--accent)">回填到 ref_text</a></div>`);
+  }
+  $("voiceExtraNotices").innerHTML = notices.join("");
+  const fillLink = $("fillRefTextLink");
+  if (fillLink) {
+    fillLink.onclick = (e) => {
+      e.preventDefault();
+      $("refTextInput").value = v.resolved_ref_text;
+      setMode("clone");
+      $("cloneVoiceSelect").value = "";
+      $("cloneUploadBox").style.display = "block";
+      $("cloneSavedHint").style.display = "none";
+    };
+  }
+
+  const ul = $("voiceChecks");
+  ul.innerHTML = "";
+  const labels = {
+    verdict_ok: "result.json verdict 以 OK 结尾",
+    rms_ok: "完整音频非静音 (RMS > 0.01)",
+    sample_rate_ok: "采样率 = 24000 Hz",
+    duration_ok: "总时长吻合 (误差 ≤ 0.3s)",
+    quota_ok: "额度对账一致 (reserved 已归 0)",
+  };
+  Object.entries(labels).forEach(([k, label]) => {
+    const item = (v.checks || {})[k] || { pass: false, detail: "未校验" };
+    const li = document.createElement("li");
+    li.innerHTML = `<span style="color:${item.pass ? 'var(--green)' : 'var(--red)'}">${item.pass ? '✔' : '✘'}</span> <span>${label}</span> <span class="hint">(${escHtml(item.detail)})</span>`;
+    ul.appendChild(li);
+  });
+  if (v.full_wav) {
+    $("fullAudioPlayer").src = `/api/voice/audio/${run.run_id}/${v.full_wav}`;
+  } else {
+    $("fullAudioPlayer").removeAttribute("src");
+  }
+  const sl = $("sentenceList");
+  sl.innerHTML = "";
+  const items = run.sentence_items || [];
+  $("regenSelectedBtn").style.display = items.length ? "inline-block" : "none";
+  items.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "sentence-row";
+    const inferTxt = s.infer_sec != null ? ` · 推理 ${s.infer_sec}s` : "";
+    const checked = !s.filename ? "checked" : "";
+    div.innerHTML = `<input type="checkbox" class="sent-pick" data-text="${escHtml(s.text)}" ${checked} style="width:auto;margin:0;" />` +
+      `<span style="flex:1;font-size:13px;">${s.index}. ${escHtml(s.text)} <span class="hint">(${s.duration_sec}s${inferTxt})</span></span>` +
+      (s.filename ? `<audio controls src="/api/voice/audio/${run.run_id}/${s.filename}"></audio>` : `<span class="err">${escHtml(s.error || "缺失")}</span>`);
+    sl.appendChild(div);
+  });
+}
+
+$("regenSelectedBtn").addEventListener("click", () => {
+  if (!selectedRun) return;
+  const picked = [...document.querySelectorAll(".sent-pick:checked")].map(el => el.dataset.text).filter(Boolean);
+  const target = picked.length ? picked : (selectedRun.sentences || []);
+  $("voiceText").value = target.join("\n");
+  updateTextMetrics();
+  setMode(selectedRun.mode || "design");
+  if (selectedRun.mode === "design" && selectedRun.instruct) {
+    $("instructInput").value = selectedRun.instruct;
+    checkInstruct();
+  }
+});
+
+async function loadVoiceLibrary() {
+  const res = await fetch("/api/voice/library");
+  const data = await res.json();
+  voiceLibrary = data.items || [];
+
+  // Update clone selector
+  const sel = $("cloneVoiceSelect");
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">上传新参考音频...</option>';
+  voiceLibrary.filter(x => x.kind === "clone_prompt").forEach(x => {
+    const opt = document.createElement("option");
+    opt.value = x.voice_id;
+    opt.textContent = `复用声线：${x.name} (${x.ref_name || "pt"})`;
+    sel.appendChild(opt);
+  });
+  if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+
+  const box = $("voiceLibraryList");
+  if (!voiceLibrary.length) {
+    box.innerHTML = '<div class="hint">暂无已保存声音。生成满意后点击「存为声音库」即可复用。</div>';
+    return;
+  }
+  box.innerHTML = "";
+  voiceLibrary.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "history-item";
+    div.style.cursor = "default";
+    const isClone = item.kind === "clone_prompt";
+    const detail = isClone
+      ? `克隆 .pt · ${item.ref_name || ""} ${item.ref_text ? "· " + item.ref_text.slice(0, 24) : ""}`
+      : `设计 · ${item.instruct || ""}`;
+    div.innerHTML = `<div class="row"><strong>${escHtml(item.name)}</strong> <span class="badge ${isClone ? "ok" : ""}">${isClone ? "克隆 .pt" : "设计预设"}</span> <span class="spacer"></span> <button class="shrink use-voice-btn">使用</button> <button class="shrink danger del-voice-btn">删</button></div><div class="hint">${escHtml(detail)}</div>`;
+    div.querySelector(".use-voice-btn").onclick = () => {
+      if (isClone) {
+        setMode("clone");
+        $("cloneVoiceSelect").value = item.voice_id;
+        $("cloneVoiceSelect").dispatchEvent(new Event("change"));
+      } else {
+        setMode("design");
+        $("instructInput").value = item.instruct || "";
+        checkInstruct();
+      }
+      if (item.language && $("languageSelect").querySelector(`option[value="${item.language}"]`)) {
+        $("languageSelect").value = item.language;
+      }
+      if (item.speed) {
+        $("speedSlider").value = item.speed;
+        $("speedVal").textContent = Number(item.speed).toFixed(2);
+      }
+    };
+    div.querySelector(".del-voice-btn").onclick = async () => {
+      if (!confirm(`确认从声音库删除「${item.name}」？`)) return;
+      await fetch(`/api/voice/library/${item.voice_id}`, { method: "DELETE" });
+      loadVoiceLibrary();
+    };
+    box.appendChild(div);
+  });
+}
+
+$("saveVoiceLibBtn").addEventListener("click", async () => {
+  if (!selectedRun) return;
+  const def = selectedRun.mode === "design" ? (selectedRun.instruct || "我的设计声线") : (selectedRun.ref_name || "我的克隆声线");
+  const name = prompt("给这个声音起个名字：", def);
+  if (!name || !name.trim()) return;
+  const res = await fetch("/api/voice/library", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: name.trim(), run_id: selectedRun.run_id }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.detail || "保存失败"); return; }
+  await loadVoiceLibrary();
+});
+
+$("saveCurrentDesignBtn").addEventListener("click", async () => {
+  const instruct = $("instructInput").value.trim();
+  if (!instruct) { alert("请先填写声线 Instruct"); return; }
+  const name = prompt("给这个设计声线起个名字：", instruct);
+  if (!name || !name.trim()) return;
+  const res = await fetch("/api/voice/library", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: name.trim(),
+      mode: "design",
+      instruct,
+      language: getEffectiveLanguage(),
+      speed: Number($("speedSlider").value),
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.detail || "保存失败"); return; }
+  await loadVoiceLibrary();
+});
+
+async function loadHistory() {
+  const res = await fetch("/api/voice/history");
+  const data = await res.json();
+  const box = $("voiceHistoryList");
+  if (!data.runs || !data.runs.length) {
+    box.innerHTML = '<div class="hint">暂无记录</div>';
+    return;
+  }
+  box.innerHTML = "";
+  data.runs.forEach(run => {
+    const div = document.createElement("div");
+    div.className = "history-item" + (selectedRun && selectedRun.run_id === run.run_id ? " selected" : "");
+    const tag = run.mode === "clone" ? "克隆" : (run.mode === "auto" ? "自动" : "设计");
+    const langTag = run.language ? ` · ${run.language}` : "";
+    const ownerTag = run.owner ? ` · ${run.owner}` : "";
+    div.innerHTML = `<div class="row"><strong>${tag}${escHtml(langTag)}</strong> <span class="hint">${run.created_at}${escHtml(ownerTag)}</span> <span class="spacer"></span> <span style="color:${run.passed ? 'var(--green)' : 'var(--red)'}">${run.passed ? "通过" : "未通过"}</span> <button class="shrink danger del-btn">删</button></div><div class="hint">${escHtml(run.sentences[0] || "")} (${run.sentences.length} 句 · ${run.gpu_seconds_used}s)</div>`;
+    div.addEventListener("click", (e) => {
+      if (e.target.classList.contains("del-btn")) return;
+      showRun(run);
+      loadHistory();
+    });
+    div.querySelector(".del-btn").addEventListener("click", async () => {
+      if (!confirm("确认删除该条本地语音历史与音频文件？")) return;
+      await fetch(`/api/voice/history/${run.run_id}`, { method: "DELETE" });
+      if (selectedRun && selectedRun.run_id === run.run_id) {
+        selectedRun = null;
+        $("voiceResultBox").style.display = "none";
+        $("voiceResultEmpty").style.display = "block";
+      }
+      loadHistory();
+    });
+    box.appendChild(div);
+  });
+}
+
+$("downloadAllBtn").addEventListener("click", () => {
+  if (selectedRun) window.location.href = `/api/voice/download-all/${selectedRun.run_id}`;
+});
+$("downloadSrtBtn").addEventListener("click", () => {
+  if (selectedRun) window.location.href = `/api/voice/srt/${selectedRun.run_id}`;
+});
+
+$("generateVoiceBtn").addEventListener("click", async () => {
+  $("voiceGuardErr").style.display = "none";
+  if (!checkInstruct()) return;
+  const sentences = $("voiceText").value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if (!sentences.length) {
+    $("voiceGuardErr").textContent = "请至少输入一句有效文本。";
+    $("voiceGuardErr").style.display = "block";
+    return;
+  }
+  const isDur = $("timingModeSelect").value === "duration";
+  const selectedVoiceId = currentMode === "clone" ? ($("cloneVoiceSelect").value || null) : null;
+  const payload = {
+    mode: currentMode,
+    sentences,
+    instruct: $("instructInput").value.trim(),
+    language: getEffectiveLanguage(),
+    speed: isDur ? null : Number($("speedSlider").value),
+    duration: isDur ? Number($("durationInput").value) : null,
+    num_step: Number($("numStepSelect").value),
+    guidance_scale: Number($("guidanceInput").value),
+    denoise: $("denoiseChk").checked,
+    normalize_text: $("normalizeTextChk").checked,
+    postprocess_output: $("postprocessChk").checked,
+    pause_sec: Number($("pauseSecInput").value),
+    ref_id: selectedVoiceId ? null : currentRefId,
+    ref_text: ($("refTextInput").value || "").trim() || null,
+    voice_id: selectedVoiceId,
+    allow_mixed_instruct: $("allowMixedInstruct").checked,
+  };
+  const res = await fetch("/api/voice/generate", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    $("voiceGuardErr").textContent = data.detail || "提交失败";
+    $("voiceGuardErr").style.display = "block";
+    return;
+  }
+  currentState.active_job = data.job;
+  renderActiveJob(data.job);
+});
+
+async function loadCapabilities() {
+  const res = await fetch("/api/voice/capabilities");
+  caps = await res.json();
+
+  const pSel = $("instructPreset");
+  pSel.innerHTML = "";
+  (caps.presets || []).forEach((p, i) => {
+    const opt = document.createElement("option");
+    opt.value = String(i);
+    opt.textContent = p.label;
+    pSel.appendChild(opt);
+  });
+  const custOpt = document.createElement("option");
+  custOpt.value = "";
+  custOpt.textContent = "自定义输入...";
+  pSel.appendChild(custOpt);
+
+  const lSel = $("languageSelect");
+  lSel.innerHTML = "";
+  (caps.languages || []).forEach(l => {
+    const opt = document.createElement("option");
+    opt.value = l.value;
+    opt.textContent = l.label;
+    lSel.appendChild(opt);
+  });
+  const langCust = document.createElement("option");
+  langCust.value = "__custom__";
+  langCust.textContent = "更多语言 (手动输入代码/名称)...";
+  lSel.appendChild(langCust);
+  lSel.value = "Chinese";
+
+  const nvSel = $("nonverbalSelect");
+  nvSel.innerHTML = '<option value="">插入副语言标签...</option>';
+  (caps.nonverbal_tags || []).forEach(t => {
+    const opt = document.createElement("option");
+    opt.value = t.tag;
+    opt.textContent = `${t.tag} ${t.label}`;
+    nvSel.appendChild(opt);
+  });
+
+  renderAttrBuilder();
+  updateTextMetrics();
+}
+
+$("checkDatasetsBtn").addEventListener("click", async () => {
+  $("datasetsBox").textContent = "查询中...";
+  const res = await fetch("/api/datasets/status");
+  const data = await res.json();
+  if (!res.ok) { $("datasetsBox").textContent = data.detail || "查询失败"; return; }
+  $("datasetsBox").innerHTML = data.datasets.map(d =>
+    `<div style="margin-bottom:6px;"><strong>${d.slug}</strong> · 状态: <span style="color:${d.status==='ready'?'var(--green)':'var(--yellow)'}">${d.status}</span> · 文件数: ${d.file_count || 0} · ${d.total_gb || 0} GB</div>`
+  ).join("");
+});
+
+$("colabToggle").addEventListener("change", async (e) => {
+  await fetch("/api/settings", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ colab_fallback_enabled: e.target.checked }),
+  });
+  $("colabTabBtn").style.display = e.target.checked ? "inline-block" : "none";
+});
+
+async function startAccountDeploy(username, force = false) {
+  deployUI = {
+    visible: true,
+    owner: username,
+    stage: "precheck",
+    startedAt: Date.now(),
+    result: null,
+    error: null,
+    logs: [`正在检查账号 ${username} 云端部署状态...`],
+  };
+  renderDeployProgress();
+
+  const res = await fetch(`/api/accounts/${encodeURIComponent(username)}/deploy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ force }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    deployUI.stage = "failed";
+    deployUI.error = data.detail || "启动部署失败";
+    renderDeployProgress();
+    return;
+  }
+  if (data.already_deployed) {
+    deployUI.visible = false;
+    manualGuideOpen = false;
+    if (data.state) applyState(data.state);
+    renderDeployProgress();
+    $("voiceJobStatus").textContent = `账号 ${username} 已部署 OmniVoice，无需重复部署（就绪）`;
+    return;
+  }
+  if (data.state) applyState(data.state);
+  if (data.job) {
+    currentState.active_job = data.job;
+    renderActiveJob(data.job);
+  }
+}
+
+async function probeRemoteAccount(username) {
+  const res = await fetch(`/api/accounts/${encodeURIComponent(username)}/probe-remote`, { method: "POST" });
+  const data = await res.json();
+  if (!res.ok) { alert(data.detail || "探测失败"); return; }
+  if (data.state) applyState(data.state);
+  if (data.probe?.deployed) {
+    alert(`检测到账号 ${username} 的 Kaggle 云端已存在 OmniVoice 内核，已标记为「已部署」，无需重新部署。`);
+  } else {
+    alert(`账号 ${username} 云端尚未检测到 yoyo-omnivoice 内核，可点击「立即部署」。`);
+  }
+}
+
+async function submitAccountForm({ usernameEl, tokenEl, labelEl, pinnedEl, autoDeployEl, activate, msgEl, btnEl, onSuccess }) {
+  msgEl.style.display = "none";
+  btnEl.disabled = true;
+  const origText = btnEl.textContent;
+  btnEl.textContent = "验证并检查云端...";
+  try {
+    const res = await fetch("/api/accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: usernameEl.value,
+        token: tokenEl.value,
+        label: labelEl.value,
+        use_pinned_image: Boolean(pinnedEl && pinnedEl.checked),
+        activate,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      msgEl.className = "err";
+      msgEl.textContent = data.detail || "验证失败";
+      msgEl.style.display = "block";
+      return;
+    }
+    const savedUser = data.state?.owner || usernameEl.value.trim();
+    tokenEl.value = "";
+    const shouldDeploy = Boolean(autoDeployEl && autoDeployEl.checked) && !data.already_deployed;
+    if (shouldDeploy) {
+      deployUI.visible = true;
+      deployUI.owner = savedUser;
+      applyState(data.state);
+      await startAccountDeploy(savedUser, false);
+    } else {
+      manualGuideOpen = false;
+      applyState(data.state);
+      if (data.already_deployed) {
+        $("voiceJobStatus").textContent = `账号 ${savedUser} 云端已部署 OmniVoice，无需重复部署（就绪）`;
+      }
+    }
+    if (onSuccess) onSuccess(data);
+  } catch (err) {
+    msgEl.className = "err";
+    msgEl.textContent = String(err || "请求异常");
+    msgEl.style.display = "block";
+  } finally {
+    btnEl.disabled = false;
+    btnEl.textContent = origText;
+  }
+}
+
+$("onboardSubmitBtn").addEventListener("click", () => {
+  submitAccountForm({
+    usernameEl: $("onboardUsername"),
+    tokenEl: $("onboardToken"),
+    labelEl: $("onboardLabel"),
+    pinnedEl: $("onboardPinnedImgChk"),
+    autoDeployEl: $("onboardAutoDeployChk"),
+    activate: true,
+    msgEl: $("onboardMsg"),
+    btnEl: $("onboardSubmitBtn"),
+    onSuccess: null,
+  });
+});
+
+$("guideBtn").addEventListener("click", () => {
+  manualGuideOpen = !manualGuideOpen;
+  if (currentState) applyState(currentState);
+});
+$("closeGuideBtn").addEventListener("click", () => {
+  manualGuideOpen = false;
+  deployUI.visible = false;
+  if (currentState) applyState(currentState);
+  renderDeployProgress();
+});
+
+$("headerAccountSelect").addEventListener("change", (e) => {
+  if (e.target.value) switchKaggleAccount(e.target.value);
+});
+
+$("tokenBtn").addEventListener("click", () => $("accountModal").classList.add("show"));
+$("accountModalCloseBtn").addEventListener("click", () => $("accountModal").classList.remove("show"));
+$("modalAddAccountBtn").addEventListener("click", () => {
+  submitAccountForm({
+    usernameEl: $("modalUsername"),
+    tokenEl: $("modalToken"),
+    labelEl: $("modalLabel"),
+    pinnedEl: $("modalPinnedImgChk"),
+    autoDeployEl: $("modalAutoDeployChk"),
+    activate: $("modalActivateChk").checked,
+    msgEl: $("accountModalErr"),
+    btnEl: $("modalAddAccountBtn"),
+    onSuccess: () => {
+      $("modalUsername").value = "";
+      $("modalLabel").value = "";
+    },
+  });
+});
+
+$("refreshBtn").addEventListener("click", async () => {
+  const res = await fetch("/api/quota/refresh", { method: "POST" });
+  if (res.ok) {
+    const q = await res.json();
+    if (currentState) currentState.quota = q;
+    renderQuota(q);
+  }
+});
+
+// Log drawer
+$("logToggle").addEventListener("click", (e) => {
+  if (e.target.tagName === "BUTTON") return;
+  $("logDrawer").classList.toggle("open");
+});
+$("copyLogBtn").addEventListener("click", () => {
+  navigator.clipboard.writeText($("logBody").innerText);
+});
+$("clearLogBtn").addEventListener("click", async () => {
+  await fetch("/api/logs/clear", { method: "POST" });
+});
+
+function appendLog(entry) {
+  const div = document.createElement("div");
+  div.className = "log-line " + (entry.level || "info");
+  div.textContent = `[${entry.ts}] ${entry.text}`;
+  $("logBody").appendChild(div);
+  while ($("logBody").children.length > 200) $("logBody").removeChild($("logBody").firstChild);
+  $("logCount").textContent = `${$("logBody").children.length} 行`;
+  $("logBody").scrollTop = $("logBody").scrollHeight;
+  if (deployUI.visible && deployUI.stage !== "done" && deployUI.stage !== "failed") {
+    deployUI.logs.push(`[${entry.ts}] ${entry.text}`);
+    if (deployUI.logs.length > 12) deployUI.logs.shift();
+    renderDeployProgress();
+  }
+}
+
+async function boot() {
+  const res = await fetch("/api/state");
+  const state = await res.json();
+  applyState(state);
+  await loadCapabilities();
+  await loadVoiceLibrary();
+  await loadHistory();
+
+  const ev = new EventSource("/api/events");
+  ev.addEventListener("init", (e) => {
+    const d = JSON.parse(e.data);
+    $("logBody").innerHTML = "";
+    (d.logs || []).forEach(appendLog);
+  });
+  ev.addEventListener("log", (e) => appendLog(JSON.parse(e.data)));
+  ev.addEventListener("logs_cleared", () => { $("logBody").innerHTML = ""; $("logCount").textContent = "0 行"; });
+  ev.addEventListener("jobs_update", (e) => {
+    const job = JSON.parse(e.data);
+    if (currentState) currentState.active_job = job;
+    renderActiveJob(job);
+  });
+  ev.addEventListener("quota_update", (e) => {
+    const q = JSON.parse(e.data);
+    if (currentState) currentState.quota = q;
+    renderQuota(q);
+  });
+  ev.addEventListener("accounts_update", (e) => {
+    const d = JSON.parse(e.data);
+    if (currentState && Array.isArray(d.accounts)) {
+      currentState.accounts = d.accounts;
+      applyState(currentState);
+    }
+  });
+  ev.addEventListener("deploy_completed", (e) => {
+    const d = JSON.parse(e.data);
+    if (currentState && Array.isArray(d.accounts)) {
+      currentState.accounts = d.accounts;
+    }
+    deployUI.visible = true;
+    deployUI.owner = d.username || deployUI.owner;
+    deployUI.stage = d.ok ? "done" : "failed";
+    deployUI.result = d.ok ? d : null;
+    deployUI.error = d.ok ? null : (d.error || "部署失败");
+    if (currentState) applyState(currentState);
+    renderDeployProgress();
+  });
+  ev.addEventListener("voice_completed", (e) => {
+    const run = JSON.parse(e.data);
+    showRun(run);
+    loadHistory();
+  });
+}
+boot();
+</script>
+</body>
+</html>

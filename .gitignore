@@ -1,0 +1,22 @@
+# Python / Virtualenv
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Secrets & local runtime data (NEVER commit tokens or user outputs)
+data/
+data/kaggle_token
+data/kaggle_accounts.json
+
+# Spike outputs & test bundles
+spike/_*/
+*.zip
+*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
