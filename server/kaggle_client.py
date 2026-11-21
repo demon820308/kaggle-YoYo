@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -105,6 +106,7 @@ class KaggleClient:
         machine_shape: str = "NvidiaTeslaT4",
         docker_image: str | None = None,
         dataset_sources: list[str] | None = None,
+        kernel_sources: list[str] | None = None,
         owner: str | None = None,
     ) -> dict[str, Any]:
         resolved_owner = self._resolve_owner(owner)
@@ -117,10 +119,10 @@ class KaggleClient:
             "isPrivate": True,
             "enableGpu": enable_gpu,
             "enableInternet": enable_internet,
-            "machineShape": machine_shape,
+            "machineShape": machine_shape if enable_gpu else "None",
             "datasetDataSources": dataset_sources or [],
             "competitionDataSources": [],
-            "kernelDataSources": [],
+            "kernelDataSources": kernel_sources or [],
         }
         if docker_image:
             payload["dockerImage"] = docker_image
@@ -128,7 +130,8 @@ class KaggleClient:
             base_url=KAGGLE_API_BASE, headers=self._headers(), timeout=60, follow_redirects=True
         ) as client:
             r = await client.post("/kernels/push", json=payload)
-            r.raise_for_status()
+            if r.status_code >= 400:
+                raise RuntimeError(f"Kaggle push HTTP {r.status_code}: {r.text[:800]}")
             resp = r.json()
         if resp.get("error"):
             raise RuntimeError(f"Kaggle push error: {resp['error']}")
@@ -193,3 +196,97 @@ class KaggleClient:
                 "total_bytes": total_bytes,
                 "total_gb": round(total_bytes / (1024**3), 2),
             }
+
+    async def upload_file_to_dataset(
+        self,
+        *,
+        slug: str,
+        file_path: Path,
+        title: str | None = None,
+        owner: str | None = None,
+    ) -> dict[str, Any]:
+        """Upload a local file into a private Kaggle dataset (create or publish new version)
+        and wait until the dataset status becomes 'ready'."""
+        resolved_owner = self._resolve_owner(owner)
+        if not file_path.is_file():
+            raise FileNotFoundError(str(file_path))
+
+        st = file_path.stat()
+        size = int(st.st_size)
+        mtime = int(st.st_mtime)
+        headers = self._headers()
+
+        async with httpx.AsyncClient(
+            base_url=KAGGLE_API_BASE, headers=headers, timeout=60, follow_redirects=True
+        ) as client:
+            # 1) Request upload slot
+            r_blob = await client.post(
+                "/blobs/upload",
+                json={
+                    "type": "DATASET",
+                    "name": file_path.name,
+                    "contentType": "application/octet-stream",
+                    "contentLength": size,
+                    "lastModifiedEpochSeconds": mtime,
+                },
+            )
+            if r_blob.status_code >= 400:
+                raise RuntimeError(f"Kaggle blob upload init HTTP {r_blob.status_code}: {r_blob.text[:500]}")
+            b_resp = r_blob.json()
+            file_token = next((b_resp[k] for k in ("token", "fileToken", "uploadToken") if b_resp.get(k)), None)
+            create_url = next((b_resp[k] for k in ("createUrl", "url", "uploadUrl", "signedUrl") if b_resp.get(k)), None)
+            if not file_token or not create_url:
+                raise RuntimeError(f"Kaggle blob upload missing token/url: {b_resp}")
+
+        # 2) PUT file bytes directly to signed GCS URL
+        async with httpx.AsyncClient(timeout=300, follow_redirects=True) as put_client:
+            data = file_path.read_bytes()
+            r_put = await put_client.put(
+                create_url,
+                content=data,
+                headers={"Content-Type": "application/octet-stream", "Content-Length": str(len(data))},
+            )
+            if r_put.status_code not in (200, 201):
+                raise RuntimeError(f"Kaggle blob PUT HTTP {r_put.status_code}: {r_put.text[:400]}")
+
+        # 3) Create dataset or publish new version
+        ds_info = await self.check_dataset_status(slug, owner=resolved_owner)
+        async with httpx.AsyncClient(
+            base_url=KAGGLE_API_BASE, headers=headers, timeout=60, follow_redirects=True
+        ) as client:
+            if not ds_info.get("exists"):
+                r_ds = await client.post(
+                    "/datasets/create/new",
+                    json={
+                        "ownerSlug": resolved_owner,
+                        "slug": slug,
+                        "title": title or slug,
+                        "isPrivate": True,
+                        "licenses": [{"name": "CC0-1.0"}],
+                        "files": [{"token": file_token, "description": ""}],
+                    },
+                )
+            else:
+                r_ds = await client.post(
+                    f"/datasets/create/version/{resolved_owner}/{slug}",
+                    json={
+                        "versionNotes": f"Update {file_path.name} ({size} bytes)",
+                        "files": [{"token": file_token, "description": ""}],
+                        "deleteOldVersions": True,
+                    },
+                )
+            if r_ds.status_code >= 400:
+                raise RuntimeError(f"Kaggle dataset publish HTTP {r_ds.status_code}: {r_ds.text[:500]}")
+            ds_resp = r_ds.json()
+            if ds_resp.get("error") or ds_resp.get("hasError"):
+                raise RuntimeError(f"Kaggle dataset publish error: {ds_resp.get('error') or ds_resp}")
+
+        # 4) Poll until dataset becomes ready (max ~60s)
+        for _ in range(30):
+            cur = await self.check_dataset_status(slug, owner=resolved_owner)
+            if cur.get("status") == "ready":
+                return cur
+            if cur.get("status") == "error":
+                raise RuntimeError(f"Kaggle 数据集 {resolved_owner}/{slug} 处理失败。")
+            await asyncio.sleep(2.0)
+        return await self.check_dataset_status(slug, owner=resolved_owner)

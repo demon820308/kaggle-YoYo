@@ -12,6 +12,7 @@ from server.config import (
     JOBS_FILE,
     RUNS_FILE,
     SETTINGS_FILE,
+    VCLONE_RUNS_FILE,
     VOICE_LIBRARY_FILE,
     VOICE_RUNS_FILE,
     ensure_dirs,
@@ -45,14 +46,29 @@ def write_json_atomic(path: Path, data: Any) -> None:
 
 
 def load_settings() -> dict[str, Any]:
-    return read_json(
-        SETTINGS_FILE,
-        {"colab_fallback_enabled": False},
-    )
+    defaults = {
+        "proxy_url": "",
+        "proxy_mode": "overseas",  # overseas | all | none
+        "cookies_browser": "",     # "" | chrome | edge | firefox
+    }
+    data = read_json(SETTINGS_FILE, defaults)
+    if not isinstance(data, dict):
+        return dict(defaults)
+    merged = dict(defaults)
+    merged.update(data)
+    return merged
 
 
 def save_settings(settings: dict[str, Any]) -> None:
     write_json_atomic(SETTINGS_FILE, settings)
+
+
+def load_vclone_runs() -> list[dict[str, Any]]:
+    return read_json(VCLONE_RUNS_FILE, [])
+
+
+def save_vclone_runs(runs: list[dict[str, Any]]) -> None:
+    write_json_atomic(VCLONE_RUNS_FILE, runs)
 
 
 def load_jobs() -> list[dict[str, Any]]:

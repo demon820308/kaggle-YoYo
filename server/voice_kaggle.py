@@ -449,8 +449,8 @@ async def execute_voice_generation(
         out_data = await job_client.get_kernel_output(slug, owner=job_owner)
         log_lines = clean_kaggle_log(out_data.get("logNullable") or out_data.get("log") or "")
         (out_dir / "kernel.log").write_text("\n".join(log_lines), encoding="utf-8")
-        for line in log_lines[-20:]:
-            jobs.log(f"[{slug}] {line}", level="error" if "FAIL" in line or "Error" in line else "info")
+        for line in log_lines[-60:]:
+            jobs.kaggle_log(f"[{slug}] {line}", level="error" if "FAIL" in line or "Error" in line else "info")
 
         for f in out_data.get("files", []):
             fn = f.get("fileName")

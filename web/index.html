@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>H3 Kaggle 控制台</title>
+<title>YoYo Kaggle 控制台</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -104,7 +104,7 @@
     height: 220px; overflow-y: auto; padding: 8px 18px 12px;
     background: #090c10; font-family: Consolas, monospace; font-size: 12px; display: none;
   }
-  .drawer.open .drawer-body { display: block; }
+  .drawer.open .drawer-body.active-tab { display: block; }
   .log-line { white-space: pre-wrap; word-break: break-all; }
   .log-line.error { color: var(--red); }
   .log-line.warn { color: var(--yellow); }
@@ -153,11 +153,28 @@
     cursor: pointer; padding: 0 4px; width: auto; outline: none;
   }
   .acct-pill-select option { background: var(--panel); color: var(--text); }
+  .vc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .vc-table th, .vc-table td {
+    border-bottom: 1px solid var(--border); padding: 7px 6px; text-align: left; vertical-align: middle;
+  }
+  .vc-table th { color: var(--muted); font-weight: 600; background: rgba(255,255,255,0.02); }
+  .vc-table input[type="text"] { padding: 5px 8px; font-size: 12px; }
+  .vc-media-card {
+    display: flex; gap: 12px; align-items: center; padding: 10px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); margin-top: 8px;
+  }
+  .vc-thumb {
+    width: 96px; height: 64px; object-fit: cover; border-radius: 6px; background: #000; flex: 0 0 auto;
+  }
+  input[type="number"] {
+    width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 10px; font-size: 13px;
+  }
 </style>
 </head>
 <body>
 <header>
-  <span class="brand">H3 控制台</span>
+  <span class="brand">YoYo Kaggle 控制台</span>
   <span class="pill" id="ownerPill">
     Kaggle:
     <strong id="ownerEmptyText" style="color:var(--yellow);">未连接</strong>
@@ -173,8 +190,7 @@
 
 <div class="tabs-bar">
   <button class="tab-btn active" data-tab="voice">语音生成 (Kaggle OmniVoice)</button>
-  <button class="tab-btn" data-tab="video">视频生成 (Kaggle 挂载版)</button>
-  <button class="tab-btn" data-tab="colab" id="colabTabBtn" style="display:none">视频生成 (Colab·备用)</button>
+  <button class="tab-btn" data-tab="vclone">视频克隆 (链接→CosyVoice 2)</button>
 </div>
 
 <main>
@@ -449,43 +465,306 @@
     </div>
   </section>
 
-  <!-- VIDEO TAB -->
-  <section id="tab-video" style="display:none">
-    <div class="card">
+  <!-- VIDEO CLONE TAB -->
+  <section id="tab-vclone" style="display:none">
+    <!-- Top acceleration & network bar -->
+    <div class="card" style="padding:12px 16px;">
       <div class="row">
-        <h3 style="margin:0">Kaggle 私有数据集就绪状态（C2 接入前哨检查）</h3>
+        <div class="shrink">
+          <strong>⚡ 云端加速环境 (yoyo-vclone-env)：</strong>
+          <span id="vcEnvBadge" class="badge">检测中...</span>
+        </div>
+        <div class="hint" style="margin:0;" id="vcEnvHint">预打包 wheels + UVR5 + Faster-Whisper + CosyVoice2-0.5B（CPU 构建，0 GPU 额度消耗）</div>
         <span class="spacer"></span>
-        <button class="shrink" id="checkDatasetsBtn">检查数据集就绪</button>
+        <button class="shrink" id="vcBuildEnvBtn" title="使用 Kaggle 免费 CPU 节点预缓存依赖与模型权重，不消耗 30h GPU 额度">⚡ 一键构建加速环境 (0 GPU)</button>
+        <button class="shrink" id="vcCookiesModalBtn">🍪 Cookies 与代理配置</button>
       </div>
-      <div id="datasetsBox" class="hint" style="margin-top:10px;">点击「检查数据集就绪」实时查询 h3-models-shared / pika / hyperflow。</div>
     </div>
-    <div class="card">
-      <h3>视频批处理控制台（C2 阶段接入）</h3>
-      <p class="hint">待 G1（<code>--disable-dynamic-vram</code> + 内存采样）和 G2 实测通过后，在此接入 Pika / HyperFlow 批量提交、A/B 测速、MP4 实测预览与周额度折算。</p>
-      <label style="margin-top:12px;">
-        <input type="checkbox" id="colabToggle" /> 启用备用 Colab 页签（需账号具备付费计算单元）
-      </label>
-    </div>
-  </section>
 
-  <!-- COLAB FALLBACK TAB -->
-  <section id="tab-colab" style="display:none">
-    <div class="card">
-      <h3>Colab H3 备用通道</h3>
-      <p class="hint">原 Colab 规格书中的 OAuth + <code>/tun/m/</code> 方案已保留为备用后端；当前账号计算单元为 0，购买单元后再启用。</p>
+    <div class="grid-2">
+      <!-- LEFT + MIDDLE: Source & Prep + Transcript & CosyVoice 2 -->
+      <div>
+        <!-- Step 1: Source & Prep -->
+        <div class="card">
+          <div class="row" style="margin-bottom:10px;">
+            <h3 style="margin:0">① 视频来源与人声/台词提取 (yt-dlp + UVR5 + Faster-Whisper)</h3>
+            <span class="spacer"></span>
+            <span class="badge" id="vcFfmpegBadge">FFmpeg: 检测中</span>
+          </div>
+
+          <div class="subtabs" style="margin-bottom:10px;">
+            <button type="button" id="vcSrcUrlTabBtn" class="active">在线视频链接 (抖音 / B站 / TikTok / YouTube)</button>
+            <button type="button" id="vcSrcFileTabBtn">上传本地视频文件</button>
+          </div>
+
+          <div id="vcSrcUrlBox">
+            <label>粘贴视频链接或平台分享文案（自动提取网址）</label>
+            <div class="row" style="margin-bottom:6px;">
+              <input type="text" id="vcUrlInput" placeholder="支持抖音分享口令、bilibili.com、b23.tv、tiktok.com、youtube.com 等..." />
+              <button type="button" class="shrink primary" id="vcResolveBtn">解析链接</button>
+            </div>
+            <div class="hint" id="vcCookiesStatusLine">平台 Cookies 状态加载中...</div>
+          </div>
+
+          <div id="vcSrcFileBox" style="display:none">
+            <label>选择本地视频文件 (.mp4 / .mov / .mkv / .webm，需含音轨)</label>
+            <input type="file" id="vcLocalFileInput" accept=".mp4,.mov,.mkv,.webm,.avi,.flv,.m4v" />
+            <div class="hint">视频画面全程保留在本机处理，仅抽取压缩音频送上 Kaggle T4 分离人声与识别。</div>
+          </div>
+
+          <div id="vcResolvedCard" class="vc-media-card" style="display:none">
+            <img id="vcThumbImg" class="vc-thumb" src="" alt="封面" style="display:none" />
+            <div style="flex:1; min-width:0;">
+              <div class="row" style="gap:6px; margin-bottom:4px;">
+                <span class="badge ok" id="vcPlatBadge">平台</span>
+                <strong id="vcVideoTitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">视频标题</strong>
+              </div>
+              <div class="hint" id="vcVideoMeta">时长: - · 作者: -</div>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label>裁剪起始时间 (秒)</label>
+              <input type="number" id="vcClipStart" min="0" max="7200" step="0.5" value="0" />
+            </div>
+            <div>
+              <label>裁剪结束时间 (秒，单次上限 180 秒)</label>
+              <input type="number" id="vcClipEnd" min="1" max="7200" step="0.5" value="180" />
+            </div>
+            <div>
+              <label>原视频语音语言</label>
+              <select id="vcSourceLang">
+                <option value="">自动识别 (Auto)</option>
+                <option value="zh">中文 (zh)</option>
+                <option value="en">英文 (en)</option>
+                <option value="ja">日语 (ja)</option>
+                <option value="ko">韩语 (ko)</option>
+                <option value="yue">粤语 (yue)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:8px;">
+            <div>
+              <label>人声伴奏分离模型 (audio-separator / UVR5)</label>
+              <select id="vcSepModel"></select>
+            </div>
+            <div>
+              <label>语音转写模型 (Faster-Whisper)</label>
+              <select id="vcWhisperModel"></select>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <label class="chk-inline">
+              <input type="checkbox" id="vcAuthConfirmChk" checked />
+              我确认拥有该视频素材及声音的使用授权，克隆产物仅用于合法合规用途
+            </label>
+          </div>
+
+          <div class="row" style="margin-top:12px;">
+            <button type="button" class="primary" id="vcPrepBtn">① 下载并提取人声与台词 (推荐·可改写台词)</button>
+            <button type="button" id="vcOneClickBtn" title="一次推送同时跑完人声分离 + 语音识别 + CosyVoice 2 同文克隆，省去二次冷启动">⚡ 一键全流程克隆 (同文重配)</button>
+          </div>
+          <div class="hint" id="vcJobStatus" style="margin-top:6px;">就绪</div>
+          <div id="vcPrepErr" class="err" style="display:none"></div>
+        </div>
+
+        <!-- Step 2: Transcript Editor & CosyVoice 2 -->
+        <div class="card" id="vcStage2Card">
+          <div class="row" style="margin-bottom:8px;">
+            <h3 style="margin:0">② 台词校对/改写与 CosyVoice 2 克隆配音</h3>
+            <span class="spacer"></span>
+            <span class="badge" id="vcRunStageBadge">等待提取素材</span>
+          </div>
+
+          <div id="vcStage2Empty" class="hint">
+            请先在上方执行「① 下载并提取人声与台词」，或从右侧历史记录中选择一条任务。
+          </div>
+
+          <div id="vcStage2Body" style="display:none">
+            <!-- Separated vocals & BGM preview -->
+            <div class="row" style="margin-bottom:10px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.02);">
+              <div>
+                <label>分离出的纯净人声 (vocals.wav)</label>
+                <audio id="vcVocalsPlayer" controls style="width:100%;max-width:100%;"></audio>
+              </div>
+              <div>
+                <label>分离出的背景伴奏 (bgm.wav)</label>
+                <audio id="vcBgmPlayer" controls style="width:100%;max-width:100%;"></audio>
+              </div>
+            </div>
+
+            <!-- Reference voice clip box -->
+            <div style="margin-bottom:12px; padding:10px; border:1px solid rgba(59,130,246,0.4); border-radius:8px; background:rgba(59,130,246,0.04);">
+              <div class="row" style="margin-bottom:6px;">
+                <strong>当前克隆参考音片段 (3~12 秒纯净干声最佳)</strong>
+                <span class="spacer"></span>
+                <span class="badge ok" id="vcRefMetaBadge">自动优选</span>
+              </div>
+              <div class="row" style="margin-bottom:6px;">
+                <div class="shrink">
+                  <audio id="vcRefPlayer" controls style="height:30px;"></audio>
+                </div>
+                <div>
+                  <input type="text" id="vcRefTextInput" placeholder="参考音对应的原话台词 (ref_text)" />
+                </div>
+              </div>
+              <details class="adv" style="margin-top:6px;">
+                <summary>手动按起止秒数截取参考音（也可直接点击下方表格中的「设为参考」）</summary>
+                <div class="row" style="margin-top:8px;">
+                  <div>
+                    <label>起始秒</label>
+                    <input type="number" id="vcCustomRefStart" min="0" step="0.1" value="0" />
+                  </div>
+                  <div>
+                    <label>结束秒</label>
+                    <input type="number" id="vcCustomRefEnd" min="0.5" step="0.1" value="6" />
+                  </div>
+                  <div class="shrink" style="align-self:flex-end;">
+                    <button type="button" id="vcCustomRefBtn">截取并设为参考音</button>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <!-- Sentence Table Toolbar -->
+            <div class="toolbar" style="margin-bottom:8px;">
+              <strong>逐句时间轴与台词 (<span id="vcSegCount">0</span> 句)</strong>
+              <span class="spacer"></span>
+              <button type="button" class="shrink" id="vcSaveScriptBtn">保存台词草稿</button>
+              <button type="button" class="shrink" id="vcResetOrigBtn">全部恢复原文</button>
+              <button type="button" class="shrink" id="vcBulkPasteBtn">批量粘贴新台词</button>
+            </div>
+
+            <div style="max-height:330px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; margin-bottom:12px;">
+              <table class="vc-table">
+                <thead>
+                  <tr>
+                    <th style="width:36px;">#</th>
+                    <th style="width:98px;">时间轴</th>
+                    <th style="width:110px;">原句 / 选参考</th>
+                    <th style="width:32%;">识别原台词</th>
+                    <th>克隆新台词 (可自由改写 / 翻译)</th>
+                    <th style="width:105px;">新配音 / 状态</th>
+                  </tr>
+                </thead>
+                <tbody id="vcSegmentsTbody"></tbody>
+              </table>
+            </div>
+
+            <!-- CosyVoice 2 & Compose Params -->
+            <div style="padding-top:8px; border-top:1px solid var(--border);">
+              <div class="row" style="margin-bottom:8px;">
+                <div>
+                  <label>CosyVoice 2 克隆模式</label>
+                  <select id="vcCosyMode"></select>
+                </div>
+                <div>
+                  <label>基础语速: <strong id="vcSpeedVal">1.00</strong>×</label>
+                  <input type="range" id="vcSpeedSlider" min="0.5" max="2.0" step="0.05" value="1.0" style="width:100%" />
+                </div>
+              </div>
+
+              <div id="vcInstructRow" class="row" style="margin-bottom:8px; display:none;">
+                <div>
+                  <label>情感 / 方言预设</label>
+                  <select id="vcInstructPreset"></select>
+                </div>
+                <div>
+                  <label>自定义指令 (例如：用激情的语气说 / 用四川话说)</label>
+                  <input type="text" id="vcInstructInput" placeholder="输入情感或风格指令..." />
+                </div>
+              </div>
+
+              <div class="row" style="margin-bottom:8px;">
+                <div>
+                  <label>背景伴奏混音音量: <strong id="vcBgmVolVal">65%</strong> (0% 为纯人声)</label>
+                  <input type="range" id="vcBgmVolSlider" min="0" max="150" step="5" value="65" style="width:100%" />
+                </div>
+                <div>
+                  <label>克隆人声音量: <strong id="vcVocalVolVal">100%</strong></label>
+                  <input type="range" id="vcVocalVolSlider" min="50" max="200" step="5" value="100" style="width:100%" />
+                </div>
+              </div>
+
+              <div class="row" style="margin-bottom:10px;">
+                <label class="chk-inline"><input type="checkbox" id="vcAutoAlignChk" checked /> 自动按原时间轴变速对齐 (atempo)</label>
+                <label class="chk-inline"><input type="checkbox" id="vcBurnSubChk" /> 烧录字幕到视频画面</label>
+                <label class="chk-inline"><input type="checkbox" id="vcBilingualSubChk" /> 双语字幕 (改写/翻译时对照)</label>
+              </div>
+
+              <div class="row">
+                <button type="button" class="primary" id="vcTtsBtn">② 启动 CosyVoice 2 克隆配音并合成视频</button>
+                <button type="button" class="shrink" id="vcRecomposeBtn" title="已有配音音频时，仅调整伴奏音量、对齐或字幕并在本地秒级重封装 MP4 (0 GPU)">仅本地重混音/封装 (0 GPU)</button>
+              </div>
+              <div id="vcTtsErr" class="err" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Final Video Preview, Downloads & History -->
+      <div>
+        <div class="card">
+          <div class="row" style="margin-bottom:8px;">
+            <h3 style="margin:0">③ 克隆成片预览与分轨下载</h3>
+            <span class="spacer"></span>
+            <button type="button" class="shrink" id="vcDownloadZipBtn" style="display:none">打包下载全部 (.zip)</button>
+          </div>
+
+          <div id="vcResultEmpty" class="hint">
+            完成配音合成后，可在此直接预览替换音轨后的成片 MP4、对比纯净人声与伴奏，以及下载 SRT 字幕。
+          </div>
+
+          <div id="vcResultBox" style="display:none">
+            <div id="vcResultSummary" class="hint" style="margin-bottom:8px;"></div>
+            <video id="vcFinalVideoPlayer" controls style="width:100%; max-height:360px; background:#000; border-radius:8px; margin-bottom:10px;"></video>
+
+            <div class="row" style="margin-bottom:10px;">
+              <div>
+                <label>对齐后的纯克隆人声轨 (new_vocals_aligned.wav)</label>
+                <audio id="vcAlignedVocalsPlayer" controls style="width:100%;max-width:100%;"></audio>
+              </div>
+              <div>
+                <label>混入伴奏后的成品音轨 (final_mixed_audio.wav)</label>
+                <audio id="vcFinalMixedPlayer" controls style="width:100%;max-width:100%;"></audio>
+              </div>
+            </div>
+
+            <div class="toolbar">
+              <a id="vcDlMp4Link" class="badge ok" style="padding:5px 10px; text-decoration:none;" download>⬇ 下载成片 MP4</a>
+              <a id="vcDlNewVocalLink" class="badge" style="padding:5px 10px; text-decoration:none;" download>⬇ 纯克隆人声 WAV</a>
+              <a id="vcDlOrigVocalLink" class="badge" style="padding:5px 10px; text-decoration:none;" download>⬇ 原视频纯人声 WAV</a>
+              <a id="vcDlBgmLink" class="badge" style="padding:5px 10px; text-decoration:none;" download>⬇ 纯背景伴奏 WAV</a>
+              <a id="vcDlClonedSrtLink" class="badge" style="padding:5px 10px; text-decoration:none;" download>⬇ 新台词 SRT</a>
+              <a id="vcDlBilingualSrtLink" class="badge" style="padding:5px 10px; text-decoration:none;" download>⬇ 双语 SRT</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>视频克隆历史记录</h3>
+          <div id="vcHistoryList" class="hint">暂无记录</div>
+        </div>
+      </div>
     </div>
   </section>
 </main>
 
 <div class="drawer" id="logDrawer">
   <div class="drawer-head" id="logToggle">
-    <strong>日志抽屉</strong>
-    <span class="hint" id="logCount">0 行</span>
+    <button type="button" class="shrink primary" id="logTabLocalBtn" style="padding:3px 10px;font-size:12px;">本地控制台日志 (<span id="logCount">0</span>)</button>
+    <button type="button" class="shrink" id="logTabKaggleBtn" style="padding:3px 10px;font-size:12px;">☁️ Kaggle 云端状态与日志 (<span id="kLogCount">0</span>)</button>
+    <span class="badge" id="kaggleLiveStatusBadge" style="margin-left:6px;">Kaggle: 空闲</span>
     <span class="spacer"></span>
-    <button class="shrink" id="copyLogBtn">复制日志</button>
-    <button class="shrink" id="clearLogBtn">清空</button>
+    <button class="shrink" id="copyLogBtn">复制当前日志</button>
+    <button class="shrink" id="clearLogBtn">清空当前</button>
+    <button class="shrink" id="collapseLogBtn" title="展开或收起底部日志栏">▲ 展开</button>
   </div>
-  <div class="drawer-body" id="logBody"></div>
+  <div class="drawer-body active-tab" id="logBody"></div>
+  <div class="drawer-body" id="kaggleLogBody"></div>
 </div>
 
 <div class="modal-bg" id="accountModal">
@@ -536,6 +815,106 @@
       <div class="row" style="justify-content:flex-end;">
         <button class="shrink primary" id="modalAddAccountBtn">验证并添加</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- COOKIES & PROXY MODAL -->
+<div class="modal-bg" id="cookiesModal">
+  <div class="modal" style="width:600px; max-height:88vh; overflow-y:auto;">
+    <div class="row" style="margin-bottom:8px;">
+      <h3 style="margin:0">🍪 平台 Cookies 与网络代理配置 (yt-dlp)</h3>
+      <span class="spacer"></span>
+      <button class="shrink" id="cookiesModalCloseBtn">关闭</button>
+    </div>
+    <p class="hint" style="margin-top:0">
+      所有 Cookie 文件仅保存在本机 <code>data/cookies/</code>（限当前 Windows 用户权限）。支持粘贴 <strong>Netscape 格式 cookies.txt</strong>、<strong>Cookie-Editor JSON</strong> 或浏览器 F12 中的 <strong>Cookie: key=val; ...</strong> 字符串。
+    </p>
+
+    <div style="margin-bottom:14px; padding:10px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.02);">
+      <h4 style="margin:0 0 8px; font-size:13px;">网络代理与浏览器直读</h4>
+      <div class="row" style="margin-bottom:8px;">
+        <div>
+          <label>HTTP / SOCKS5 代理地址（例如 http://127.0.0.1:7890，留空为不设代理）</label>
+          <input type="text" id="vcProxyUrlInput" placeholder="http://127.0.0.1:7890" />
+        </div>
+        <div>
+          <label>代理分流策略</label>
+          <select id="vcProxyModeSelect">
+            <option value="overseas">仅海外平台走代理 (YouTube / TikTok)</option>
+            <option value="all">全部平台走代理</option>
+            <option value="none">全部直连（禁用代理）</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>未手动配 Cookie 时尝试从本机浏览器读取（Windows 上 Chrome/Edge 打开时可能锁库，推荐下方粘贴 Cookie）</label>
+          <select id="vcBrowserCookieSelect">
+            <option value="">不自动读浏览器（仅使用下方已保存的平台 Cookie）</option>
+            <option value="edge">Microsoft Edge</option>
+            <option value="chrome">Google Chrome</option>
+            <option value="firefox">Mozilla Firefox</option>
+          </select>
+        </div>
+        <div class="shrink" style="align-self:flex-end;">
+          <button type="button" class="primary" id="vcSaveNetworkBtn">保存代理设置</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border); padding-top:12px;">
+      <div class="row" style="margin-bottom:8px;">
+        <div>
+          <label>选择要配置或自动提取 Cookies 的平台</label>
+          <select id="vcCookiePlatformSelect">
+            <option value="douyin">抖音 (Douyin)</option>
+            <option value="bilibili">哔哩哔哩 (Bilibili)</option>
+            <option value="tiktok">TikTok</option>
+            <option value="youtube">YouTube</option>
+            <option value="generic">其他通用平台</option>
+          </select>
+        </div>
+        <div class="shrink" style="align-self:flex-end;">
+          <span class="badge" id="vcSelectedPlatCookieBadge">未配置</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom:10px; padding:10px; border:1px solid rgba(59,130,246,0.4); border-radius:8px; background:rgba(59,130,246,0.04);">
+        <div style="font-size:12px; font-weight:600; margin-bottom:6px;">⚡ 自动提取 Cookie（基于本机 Chrome 独立环境 + CDP 内存直读，免手工复制）</div>
+        <div class="row" style="gap:8px;">
+          <button type="button" class="primary" id="vcAutoHarvestSilentBtn">⚡ 一键后台静默提取 Cookie</button>
+          <button type="button" id="vcAutoHarvestLoginBtn">🔑 打开独立窗口扫码/登录并自动保存</button>
+        </div>
+        <div class="hint" style="margin-top:6px;">
+          • <strong>静默提取</strong>：后台自动访问该平台生成反爬/访客 Cookie（若之前在独立窗口登录过，会自动提取已保存的登录态）。<br/>
+          • <strong>弹窗扫码/登录</strong>：弹出一个独立 Chrome 窗口，你在里面扫码登录（或过滑块）后，系统检测到登录态或你关闭窗口时会自动提取并保存全部 Cookie。
+        </div>
+      </div>
+
+      <label>或者手动粘贴 Cookie 内容（留空并保存可清空该平台 Cookie）</label>
+      <textarea id="vcCookieTextInput" style="min-height:120px; font-family:Consolas,monospace; font-size:12px;" placeholder="支持 3 种格式直接粘贴：&#10;1. F12 网络面板复制的 Cookie: ttwid=...; sessionid=...&#10;2. Netscape HTTP Cookie File 内容&#10;3. Cookie-Editor 导出的 JSON 数组"></textarea>
+      <div id="vcCookieModalMsg" class="ok" style="display:none"></div>
+      <div class="row" style="margin-top:10px; justify-content:flex-end;">
+        <button type="button" class="shrink danger" id="vcClearCookieBtn">清空当前平台 Cookie</button>
+        <button type="button" class="shrink primary" id="vcSaveCookieBtn">保存该平台 Cookie</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BULK PASTE SCRIPT MODAL -->
+<div class="modal-bg" id="bulkPasteModal">
+  <div class="modal" style="width:520px;">
+    <div class="row" style="margin-bottom:8px;">
+      <h3 style="margin:0">批量粘贴新台词（按行依次填入）</h3>
+      <span class="spacer"></span>
+      <button class="shrink" id="bulkPasteCloseBtn">关闭</button>
+    </div>
+    <p class="hint" style="margin-top:0">每行对应表格中的一句台词（非常适合将原台词整段丢给大模型翻译/改写后一键贴回）。</p>
+    <textarea id="bulkPasteTextarea" style="min-height:180px;"></textarea>
+    <div class="row" style="margin-top:10px; justify-content:flex-end;">
+      <button type="button" class="shrink primary" id="bulkPasteApplyBtn">应用到台词表</button>
     </div>
   </div>
 </div>
@@ -802,8 +1181,9 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-    ["voice", "video", "colab"].forEach(t => {
-      $("tab-" + t).style.display = btn.dataset.tab === t ? "block" : "none";
+    ["voice", "vclone"].forEach(t => {
+      const el = $("tab-" + t);
+      if (el) el.style.display = btn.dataset.tab === t ? "block" : "none";
     });
   });
 });
@@ -873,6 +1253,10 @@ function renderQuota(q) {
     $("lockDot").className = "dot red";
     $("lockText").textContent = "未连接";
     $("generateVoiceBtn").disabled = true;
+    if ($("vcPrepBtn")) $("vcPrepBtn").disabled = true;
+    if ($("vcOneClickBtn")) $("vcOneClickBtn").disabled = true;
+    if ($("vcTtsBtn")) $("vcTtsBtn").disabled = true;
+    if ($("vcBuildEnvBtn")) $("vcBuildEnvBtn").disabled = true;
     $("headerAccountSelect").disabled = true;
     return;
   }
@@ -885,6 +1269,10 @@ function renderQuota(q) {
   $("lockDot").className = "dot " + (busy ? "yellow" : "green");
   $("lockText").textContent = busy ? "任务占用中" : "空闲";
   $("generateVoiceBtn").disabled = busy;
+  if ($("vcPrepBtn")) $("vcPrepBtn").disabled = busy;
+  if ($("vcOneClickBtn")) $("vcOneClickBtn").disabled = busy;
+  if ($("vcTtsBtn")) $("vcTtsBtn").disabled = busy;
+  if ($("vcBuildEnvBtn")) $("vcBuildEnvBtn").disabled = busy;
   $("headerAccountSelect").disabled = busy;
 }
 
@@ -1003,7 +1391,9 @@ function renderDeployProgress() {
 
 function renderActiveJob(job) {
   if (!job) {
-    $("voiceJobStatus").textContent = (currentState && currentState.token_configured) ? "就绪" : "请先完成上方 Kaggle 账号连接";
+    const readyTxt = (currentState && currentState.token_configured) ? "就绪" : "请先完成上方 Kaggle 账号连接";
+    $("voiceJobStatus").textContent = readyTxt;
+    if ($("vcJobStatus")) $("vcJobStatus").textContent = readyTxt;
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
   } else {
     jobStartTime = job.created_at * 1000;
@@ -1017,7 +1407,9 @@ function renderActiveJob(job) {
     const updateClock = () => {
       const sec = Math.max(0, Math.round((Date.now() - jobStartTime) / 1000));
       const ownerTag = job.owner ? `[${job.owner}] ` : "";
-      $("voiceJobStatus").textContent = `${ownerTag}${job.kind} · 状态: ${job.state} · 已用时 ${sec}s`;
+      const txt = `${ownerTag}${job.kind} · 状态: ${job.state} · 已用时 ${sec}s`;
+      $("voiceJobStatus").textContent = txt;
+      if ($("vcJobStatus")) $("vcJobStatus").textContent = txt;
       if (isDeploy && deployUI.visible && deployUI.stage !== "done" && deployUI.stage !== "failed") {
         renderDeployProgress();
       }
@@ -1108,8 +1500,6 @@ function applyState(state) {
   $("onboardingCard").style.display = showOnboarding ? "block" : "none";
   $("closeGuideBtn").style.display = configured ? "inline-block" : "none";
 
-  $("colabToggle").checked = Boolean(state.settings?.colab_fallback_enabled);
-  $("colabTabBtn").style.display = $("colabToggle").checked ? "inline-block" : "none";
   renderAccountList(accounts);
   renderActiveJob(state.active_job);
 }
@@ -1449,23 +1839,772 @@ async function loadCapabilities() {
   updateTextMetrics();
 }
 
-$("checkDatasetsBtn").addEventListener("click", async () => {
-  $("datasetsBox").textContent = "查询中...";
-  const res = await fetch("/api/datasets/status");
+// ==================== VIDEO CLONE (yt-dlp + UVR5 + Faster-Whisper + CosyVoice 2) ====================
+let vcCaps = null;
+let vcSourceMode = "url"; // "url" | "file"
+let vcLocalVideoId = null;
+let vcCurrentRun = null;
+
+function renderVCloneEnvStatus(envSt) {
+  const badge = $("vcEnvBadge");
+  const hint = $("vcEnvHint");
+  const btn = $("vcBuildEnvBtn");
+  if (!badge) return;
+  if (!envSt || !envSt.configured) {
+    badge.className = "badge warn";
+    badge.textContent = "未连接账号";
+    return;
+  }
+  if (envSt.ready) {
+    badge.className = "badge ok";
+    badge.textContent = "已就绪 ✔ (高速挂载)";
+    hint.textContent = `当前账号 ${envSt.owner} 已缓存 wheels + UVR5 + Whisper + CosyVoice 2，任务将自动挂载免重下。`;
+    btn.textContent = "↻ 更新加速环境 (0 GPU)";
+  } else if (envSt.status === "running" || envSt.status === "queued") {
+    badge.className = "badge warn";
+    badge.textContent = `构建中 (${envSt.status})`;
+    hint.textContent = "Kaggle CPU 节点正在后台打包缓存（不占 GPU 额度），在此期间也可直接提交任务（自动走联网安装）。";
+  } else {
+    badge.className = "badge warn";
+    badge.textContent = "尚未构建 (当前走联网现装)";
+    hint.textContent = "建议点击右侧「⚡ 一键构建加速环境 (0 GPU)」，构建后每次配音冷启动可提速 2~4 倍。";
+    btn.textContent = "⚡ 一键构建加速环境 (0 GPU)";
+  }
+}
+
+function renderVCookiesStatus(cookiesMap, settings) {
+  if (!cookiesMap) return;
+  const labels = { douyin: "抖音", bilibili: "B站", tiktok: "TikTok", youtube: "YouTube" };
+  const parts = Object.entries(labels).map(([k, name]) => {
+    const c = cookiesMap[k];
+    return c && c.configured
+      ? `<span style="color:var(--green)">${name}✔(${c.cookie_count})</span>`
+      : `<span>${name}:未配</span>`;
+  });
+  const proxyInfo = settings?.proxy_url
+    ? ` · 代理: <code>${escHtml(settings.proxy_url)}</code> (${settings.proxy_mode === 'all' ? '全局' : '仅海外'})`
+    : " · 代理: 直连";
+  $("vcCookiesStatusLine").innerHTML = `Cookies: ${parts.join(" · ")}${proxyInfo}`;
+
+  const curPlat = $("vcCookiePlatformSelect").value;
+  const curC = cookiesMap[curPlat];
+  const pBadge = $("vcSelectedPlatCookieBadge");
+  if (curC && curC.configured) {
+    pBadge.className = "badge ok";
+    pBadge.textContent = `已配置 (${curC.cookie_count} 条 · ${curC.updated_at})`;
+  } else {
+    pBadge.className = "badge warn";
+    pBadge.textContent = "未配置";
+  }
+}
+
+async function loadVCloneCapabilities() {
+  const res = await fetch("/api/vclone/capabilities");
+  if (!res.ok) return;
+  vcCaps = await res.json();
+
+  const ffBadge = $("vcFfmpegBadge");
+  if (vcCaps.ffmpeg?.ok) {
+    ffBadge.className = "badge ok";
+    ffBadge.textContent = "本地 FFmpeg 就绪 ✔";
+    ffBadge.title = vcCaps.ffmpeg.version || "";
+  } else {
+    ffBadge.className = "badge warn";
+    ffBadge.textContent = "未检测到 FFmpeg";
+  }
+
+  const sepSel = $("vcSepModel");
+  sepSel.innerHTML = "";
+  (vcCaps.separator_models || []).forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m.value;
+    opt.textContent = m.label;
+    sepSel.appendChild(opt);
+  });
+
+  const wSel = $("vcWhisperModel");
+  wSel.innerHTML = "";
+  (vcCaps.whisper_models || []).forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m.value;
+    opt.textContent = m.label;
+    wSel.appendChild(opt);
+  });
+
+  const cmSel = $("vcCosyMode");
+  cmSel.innerHTML = "";
+  (vcCaps.cosyvoice_modes || []).forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m.value;
+    opt.textContent = m.label;
+    cmSel.appendChild(opt);
+  });
+
+  const ipSel = $("vcInstructPreset");
+  ipSel.innerHTML = "";
+  (vcCaps.instruct_presets || []).forEach((p, idx) => {
+    const opt = document.createElement("option");
+    opt.value = String(idx);
+    opt.textContent = p.label;
+    ipSel.appendChild(opt);
+  });
+
+  if (vcCaps.settings) {
+    $("vcProxyUrlInput").value = vcCaps.settings.proxy_url || "";
+    $("vcProxyModeSelect").value = vcCaps.settings.proxy_mode || "overseas";
+    $("vcBrowserCookieSelect").value = vcCaps.settings.cookies_browser || "";
+  }
+  renderVCookiesStatus(vcCaps.cookies, vcCaps.settings);
+  renderVCloneEnvStatus(vcCaps.env_status);
+}
+
+$("vcBuildEnvBtn").addEventListener("click", async () => {
+  const res = await fetch("/api/vclone/build-env", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ include_roformer: false }),
+  });
   const data = await res.json();
-  if (!res.ok) { $("datasetsBox").textContent = data.detail || "查询失败"; return; }
-  $("datasetsBox").innerHTML = data.datasets.map(d =>
-    `<div style="margin-bottom:6px;"><strong>${d.slug}</strong> · 状态: <span style="color:${d.status==='ready'?'var(--green)':'var(--yellow)'}">${d.status}</span> · 文件数: ${d.file_count || 0} · ${d.total_gb || 0} GB</div>`
-  ).join("");
+  if (!res.ok) {
+    alert(data.detail || "启动加速环境构建失败");
+    return;
+  }
+  if (currentState) {
+    currentState.active_job = data.job;
+    renderActiveJob(data.job);
+  }
+  renderVCloneEnvStatus({ configured: true, owner: currentState?.owner, ready: false, status: "queued" });
 });
 
-$("colabToggle").addEventListener("change", async (e) => {
-  await fetch("/api/settings", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ colab_fallback_enabled: e.target.checked }),
-  });
-  $("colabTabBtn").style.display = e.target.checked ? "inline-block" : "none";
+$("vcCookiesModalBtn").addEventListener("click", async () => {
+  const res = await fetch("/api/vclone/cookies");
+  if (res.ok) {
+    const d = await res.json();
+    if (vcCaps) { vcCaps.cookies = d.cookies; vcCaps.settings = d.settings; }
+    renderVCookiesStatus(d.cookies, d.settings);
+  }
+  $("vcCookieModalMsg").style.display = "none";
+  $("cookiesModal").classList.add("show");
 });
+$("cookiesModalCloseBtn").addEventListener("click", () => $("cookiesModal").classList.remove("show"));
+$("vcCookiePlatformSelect").addEventListener("change", () => {
+  $("vcCookieTextInput").value = "";
+  $("vcCookieModalMsg").style.display = "none";
+  if (vcCaps) renderVCookiesStatus(vcCaps.cookies, vcCaps.settings);
+});
+
+$("vcSaveNetworkBtn").addEventListener("click", async () => {
+  const res = await fetch("/api/vclone/cookies", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      proxy_url: $("vcProxyUrlInput").value.trim(),
+      proxy_mode: $("vcProxyModeSelect").value,
+      cookies_browser: $("vcBrowserCookieSelect").value,
+    }),
+  });
+  const data = await res.json();
+  const msg = $("vcCookieModalMsg");
+  if (!res.ok) {
+    msg.className = "err";
+    msg.textContent = data.detail || "保存失败";
+    msg.style.display = "block";
+    return;
+  }
+  if (vcCaps) { vcCaps.cookies = data.cookies; vcCaps.settings = data.settings; }
+  renderVCookiesStatus(data.cookies, data.settings);
+  msg.className = "ok";
+  msg.textContent = "网络代理与浏览器读取设置已保存。";
+  msg.style.display = "block";
+});
+
+async function savePlatformCookie(clear = false) {
+  const plat = $("vcCookiePlatformSelect").value;
+  const txt = clear ? "" : $("vcCookieTextInput").value.trim();
+  const msg = $("vcCookieModalMsg");
+  if (!clear && !txt) {
+    msg.className = "ok";
+    msg.textContent = "自动提取的 Cookie 在提取完成时已自动保存，无需再次点击下方保存按钮（下方按钮仅用于手动粘贴时保存）。";
+    msg.style.display = "block";
+    return;
+  }
+  const res = await fetch("/api/vclone/cookies", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ platform: plat, cookies_text: txt }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    msg.className = "err";
+    msg.textContent = data.detail || "保存 Cookie 失败";
+    msg.style.display = "block";
+    return;
+  }
+  if (vcCaps) { vcCaps.cookies = data.cookies; vcCaps.settings = data.settings; }
+  renderVCookiesStatus(data.cookies, data.settings);
+  $("vcCookieTextInput").value = "";
+  msg.className = "ok";
+  msg.textContent = clear ? `已清空 ${plat} 的 Cookies。` : `已保存 ${plat} 的 Cookies（共 ${data.saved_cookie?.cookie_count || 0} 条）。`;
+  msg.style.display = "block";
+}
+$("vcSaveCookieBtn").addEventListener("click", () => savePlatformCookie(false));
+$("vcClearCookieBtn").addEventListener("click", () => savePlatformCookie(true));
+
+async function triggerAutoHarvestCookie(headless) {
+  const plat = $("vcCookiePlatformSelect").value;
+  const msg = $("vcCookieModalMsg");
+  const btnSilent = $("vcAutoHarvestSilentBtn");
+  const btnLogin = $("vcAutoHarvestLoginBtn");
+  btnSilent.disabled = true;
+  btnLogin.disabled = true;
+  msg.className = "warn";
+  msg.textContent = headless
+    ? `正在后台启动 Chrome 静默访问 ${plat} 并提取 Cookie（约 4~6 秒）...`
+    : `已打开独立 Chrome 窗口，请在窗口中完成 ${plat} 扫码/登录（登录成功或关闭该窗口后将自动保存 Cookie）...`;
+  msg.style.display = "block";
+  try {
+    const res = await fetch("/api/vclone/cookies/auto-harvest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        platform: plat,
+        headless: Boolean(headless),
+        target_url: $("vcUrlInput").value.trim() || null,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      msg.className = "err";
+      msg.textContent = data.detail || "自动提取 Cookie 失败";
+      return;
+    }
+    if (vcCaps) { vcCaps.cookies = data.cookies; vcCaps.settings = data.settings; }
+    renderVCookiesStatus(data.cookies, data.settings);
+    const h = data.harvest || {};
+    if (h.netscape_preview) {
+      $("vcCookieTextInput").value = h.netscape_preview;
+    }
+    const authTag = h.has_auth ? "（✔ 已包含登录态凭据，已自动保存）" : "（已获取访客/反爬凭据，已自动保存）";
+    msg.className = "ok";
+    msg.textContent = `自动提取 ${plat} Cookie 成功！共保存 ${h.cookie_count || 0} 条 ${authTag}`;
+  } catch (err) {
+    msg.className = "err";
+    msg.textContent = String(err || "请求异常");
+  } finally {
+    btnSilent.disabled = false;
+    btnLogin.disabled = false;
+  }
+}
+$("vcAutoHarvestSilentBtn").addEventListener("click", () => triggerAutoHarvestCookie(true));
+$("vcAutoHarvestLoginBtn").addEventListener("click", () => triggerAutoHarvestCookie(false));
+
+// Source tabs: URL vs Local File
+$("vcSrcUrlTabBtn").addEventListener("click", () => {
+  vcSourceMode = "url";
+  $("vcSrcUrlTabBtn").classList.add("active");
+  $("vcSrcFileTabBtn").classList.remove("active");
+  $("vcSrcUrlBox").style.display = "block";
+  $("vcSrcFileBox").style.display = "none";
+});
+$("vcSrcFileTabBtn").addEventListener("click", () => {
+  vcSourceMode = "file";
+  $("vcSrcFileTabBtn").classList.add("active");
+  $("vcSrcUrlTabBtn").classList.remove("active");
+  $("vcSrcFileBox").style.display = "block";
+  $("vcSrcUrlBox").style.display = "none";
+});
+
+function showResolvedVideoCard(info) {
+  $("vcResolvedCard").style.display = "flex";
+  $("vcPlatBadge").textContent = info.platform_label || info.platform || "视频";
+  $("vcVideoTitle").textContent = info.title || "未命名视频";
+  const durTxt = info.duration ? `${info.duration} 秒` : "未知时长";
+  const upTxt = info.uploader ? ` · 作者: ${info.uploader}` : "";
+  const limTxt = info.exceeds_limit ? ` · ⚠️ 超过 180s，已自动默认截取前 180s` : "";
+  $("vcVideoMeta").textContent = `时长: ${durTxt}${upTxt}${limTxt}`;
+  const thumb = $("vcThumbImg");
+  if (info.thumbnail) {
+    thumb.src = info.thumbnail;
+    thumb.style.display = "block";
+  } else {
+    thumb.style.display = "none";
+  }
+  $("vcClipStart").value = info.recommended_clip_start ?? 0;
+  $("vcClipEnd").value = info.recommended_clip_end ?? 180;
+}
+
+$("vcResolveBtn").addEventListener("click", async () => {
+  $("vcPrepErr").style.display = "none";
+  const raw = $("vcUrlInput").value.trim();
+  if (!raw) {
+    $("vcPrepErr").textContent = "请先输入或粘贴视频链接。";
+    $("vcPrepErr").style.display = "block";
+    return;
+  }
+  const btn = $("vcResolveBtn");
+  btn.disabled = true;
+  btn.textContent = "解析中...";
+  try {
+    const res = await fetch("/api/vclone/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: raw }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      $("vcPrepErr").textContent = data.detail || "解析失败";
+      $("vcPrepErr").style.display = "block";
+      return;
+    }
+    showResolvedVideoCard(data.info);
+  } catch (err) {
+    $("vcPrepErr").textContent = "无法连接到本地后台服务 (127.0.0.1:8760)，请确认已运行 start.bat：" + String(err);
+    $("vcPrepErr").style.display = "block";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "解析链接";
+  }
+});
+
+$("vcLocalFileInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $("vcPrepErr").style.display = "none";
+  $("vcJobStatus").textContent = "正在上传并探测本地视频...";
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/vclone/upload-local", { method: "POST", body: fd });
+  const data = await res.json();
+  if (!res.ok) {
+    vcLocalVideoId = null;
+    $("vcPrepErr").textContent = data.detail || "本地视频解析失败";
+    $("vcPrepErr").style.display = "block";
+    $("vcJobStatus").textContent = "就绪";
+    return;
+  }
+  vcLocalVideoId = data.local_video_id;
+  showResolvedVideoCard(data.info);
+  $("vcJobStatus").textContent = "本地视频已就绪";
+});
+
+async function submitVClonePrep(oneClick) {
+  $("vcPrepErr").style.display = "none";
+  if (!$("vcAuthConfirmChk").checked) {
+    $("vcPrepErr").textContent = "请先勾选确认拥有该视频素材及声音的使用授权。";
+    $("vcPrepErr").style.display = "block";
+    return;
+  }
+  const payload = {
+    url: vcSourceMode === "url" ? $("vcUrlInput").value.trim() : null,
+    local_video_id: vcSourceMode === "file" ? vcLocalVideoId : null,
+    clip_start: Number($("vcClipStart").value || 0),
+    clip_end: Number($("vcClipEnd").value || 180),
+    separator_model: $("vcSepModel").value,
+    whisper_model: $("vcWhisperModel").value,
+    source_language: $("vcSourceLang").value || null,
+    one_click_tts: Boolean(oneClick),
+    cosy_mode: $("vcCosyMode").value || "zero_shot",
+    cosy_instruct: $("vcInstructInput").value.trim(),
+    cosy_speed: Number($("vcSpeedSlider").value || 1.0),
+    auto_align: $("vcAutoAlignChk").checked,
+    bgm_volume: Number($("vcBgmVolSlider").value || 65) / 100.0,
+    burn_subtitles: $("vcBurnSubChk").checked,
+    authorized_confirm: $("vcAuthConfirmChk").checked,
+  };
+  if (vcSourceMode === "url" && !payload.url) {
+    $("vcPrepErr").textContent = "请先粘贴视频链接。";
+    $("vcPrepErr").style.display = "block";
+    return;
+  }
+  if (vcSourceMode === "file" && !payload.local_video_id) {
+    $("vcPrepErr").textContent = "请先选择要上传的本地视频文件。";
+    $("vcPrepErr").style.display = "block";
+    return;
+  }
+
+  const prepBtn = $("vcPrepBtn");
+  const oneBtn = $("vcOneClickBtn");
+  prepBtn.disabled = true;
+  oneBtn.disabled = true;
+  $("vcJobStatus").textContent = "正在下载视频并用本地 FFmpeg 标准化提取音频（视频下载+转码约需 15~35 秒，可展开底部日志查看实时进度）...";
+  try {
+    const res = await fetch("/api/vclone/prep", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      $("vcPrepErr").textContent = data.detail || "提交失败";
+      $("vcPrepErr").style.display = "block";
+      $("vcJobStatus").textContent = "提交未成功";
+      return;
+    }
+    if (currentState) {
+      currentState.active_job = data.job;
+      renderActiveJob(data.job);
+    }
+    showVCloneRun(data.run);
+    loadVCloneHistory();
+  } catch (err) {
+    $("vcPrepErr").textContent = "请求失败（请确认本地后台服务 127.0.0.1:8760 正在运行）：" + String(err);
+    $("vcPrepErr").style.display = "block";
+    $("vcJobStatus").textContent = "请求异常";
+  } finally {
+    const busy = Boolean(currentState && currentState.active_job);
+    prepBtn.disabled = busy;
+    oneBtn.disabled = busy;
+  }
+}
+
+$("vcPrepBtn").addEventListener("click", () => submitVClonePrep(false));
+$("vcOneClickBtn").addEventListener("click", () => submitVClonePrep(true));
+
+$("vcCosyMode").addEventListener("change", () => {
+  $("vcInstructRow").style.display = $("vcCosyMode").value === "instruct2" ? "flex" : "none";
+});
+$("vcInstructPreset").addEventListener("change", () => {
+  const idx = Number($("vcInstructPreset").value);
+  const p = (vcCaps?.instruct_presets || [])[idx];
+  if (p) $("vcInstructInput").value = p.instruct;
+});
+$("vcSpeedSlider").addEventListener("input", (e) => {
+  $("vcSpeedVal").textContent = Number(e.target.value).toFixed(2);
+});
+$("vcBgmVolSlider").addEventListener("input", (e) => {
+  $("vcBgmVolVal").textContent = `${e.target.value}%`;
+});
+$("vcVocalVolSlider").addEventListener("input", (e) => {
+  $("vcVocalVolVal").textContent = `${e.target.value}%`;
+});
+
+function collectEditedSegments() {
+  if (!vcCurrentRun) return [];
+  const rows = [...document.querySelectorAll("#vcSegmentsTbody tr")];
+  return rows.map(tr => {
+    const idx = Number(tr.dataset.index);
+    const orig = (vcCurrentRun.segments || []).find(s => Number(s.index) === idx) || {};
+    const txtInput = tr.querySelector(".vc-seg-text");
+    return {
+      ...orig,
+      index: idx,
+      text: txtInput ? txtInput.value.trim() : (orig.text || orig.orig_text || ""),
+    };
+  });
+}
+
+$("vcSaveScriptBtn").addEventListener("click", async () => {
+  if (!vcCurrentRun) return;
+  const segs = collectEditedSegments();
+  const res = await fetch(`/api/vclone/runs/${encodeURIComponent(vcCurrentRun.run_id)}/script`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      segments: segs,
+      ref_text: $("vcRefTextInput").value.trim(),
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.detail || "保存失败"); return; }
+  showVCloneRun(data.run);
+});
+
+$("vcResetOrigBtn").addEventListener("click", () => {
+  document.querySelectorAll("#vcSegmentsTbody tr").forEach(tr => {
+    const inp = tr.querySelector(".vc-seg-text");
+    if (inp && tr.dataset.orig) inp.value = tr.dataset.orig;
+  });
+});
+
+$("vcBulkPasteBtn").addEventListener("click", () => {
+  if (!vcCurrentRun) return;
+  const lines = collectEditedSegments().map(s => s.text || s.orig_text || "");
+  $("bulkPasteTextarea").value = lines.join("\n");
+  $("bulkPasteModal").classList.add("show");
+});
+$("bulkPasteCloseBtn").addEventListener("click", () => $("bulkPasteModal").classList.remove("show"));
+$("bulkPasteApplyBtn").addEventListener("click", () => {
+  const lines = $("bulkPasteTextarea").value.split(/\r?\n/);
+  const rows = [...document.querySelectorAll("#vcSegmentsTbody tr")];
+  rows.forEach((tr, i) => {
+    const inp = tr.querySelector(".vc-seg-text");
+    if (inp && lines[i] !== undefined) inp.value = lines[i].trim();
+  });
+  $("bulkPasteModal").classList.remove("show");
+});
+
+async function selectSegmentAsReference(segIndex) {
+  if (!vcCurrentRun) return;
+  const res = await fetch(`/api/vclone/runs/${encodeURIComponent(vcCurrentRun.run_id)}/select-ref`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ segment_index: segIndex }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.detail || "切换参考音失败"); return; }
+  showVCloneRun(data.run);
+}
+
+$("vcCustomRefBtn").addEventListener("click", async () => {
+  if (!vcCurrentRun) return;
+  const s0 = Number($("vcCustomRefStart").value || 0);
+  const s1 = Number($("vcCustomRefEnd").value || 6);
+  const res = await fetch(`/api/vclone/runs/${encodeURIComponent(vcCurrentRun.run_id)}/select-ref`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      start_sec: s0,
+      end_sec: s1,
+      ref_text: $("vcRefTextInput").value.trim(),
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.detail || "截取参考音失败"); return; }
+  showVCloneRun(data.run);
+});
+
+$("vcTtsBtn").addEventListener("click", async () => {
+  if (!vcCurrentRun) return;
+  $("vcTtsErr").style.display = "none";
+  const payload = {
+    segments: collectEditedSegments(),
+    ref_text: $("vcRefTextInput").value.trim(),
+    cosy_mode: $("vcCosyMode").value || "zero_shot",
+    cosy_instruct: $("vcInstructInput").value.trim(),
+    cosy_speed: Number($("vcSpeedSlider").value || 1.0),
+    auto_align: $("vcAutoAlignChk").checked,
+    vocal_volume: Number($("vcVocalVolSlider").value || 100) / 100.0,
+    bgm_volume: Number($("vcBgmVolSlider").value || 65) / 100.0,
+    burn_subtitles: $("vcBurnSubChk").checked,
+    bilingual_subtitles: $("vcBilingualSubChk").checked,
+  };
+  const res = await fetch(`/api/vclone/runs/${encodeURIComponent(vcCurrentRun.run_id)}/tts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    $("vcTtsErr").textContent = data.detail || "启动 CosyVoice 2 配音失败";
+    $("vcTtsErr").style.display = "block";
+    return;
+  }
+  if (currentState) {
+    currentState.active_job = data.job;
+    renderActiveJob(data.job);
+  }
+  showVCloneRun(data.run);
+  loadVCloneHistory();
+});
+
+$("vcRecomposeBtn").addEventListener("click", async () => {
+  if (!vcCurrentRun) return;
+  $("vcTtsErr").style.display = "none";
+  const btn = $("vcRecomposeBtn");
+  btn.disabled = true;
+  btn.textContent = "本地合成中...";
+  try {
+    const res = await fetch(`/api/vclone/runs/${encodeURIComponent(vcCurrentRun.run_id)}/compose`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        segments: collectEditedSegments(),
+        auto_align: $("vcAutoAlignChk").checked,
+        vocal_volume: Number($("vcVocalVolSlider").value || 100) / 100.0,
+        bgm_volume: Number($("vcBgmVolSlider").value || 65) / 100.0,
+        burn_subtitles: $("vcBurnSubChk").checked,
+        bilingual_subtitles: $("vcBilingualSubChk").checked,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      $("vcTtsErr").textContent = data.detail || "本地重混音失败";
+      $("vcTtsErr").style.display = "block";
+      return;
+    }
+    showVCloneRun(data.run);
+    loadVCloneHistory();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "仅本地重混音/封装 (0 GPU)";
+  }
+});
+
+function showVCloneRun(run) {
+  if (!run) return;
+  vcCurrentRun = run;
+  const rid = run.run_id;
+  const ts = Date.now();
+
+  const stageLabels = {
+    prep_running: "① 云端分离人声与识别中...",
+    prep_failed: "① 预处理失败",
+    prep_ready: "① 人声与台词已就绪 · 待校对配音",
+    tts_running: "② CosyVoice 2 云端配音中...",
+    tts_failed: "② 配音未通过",
+    completed: "✔ 克隆成片已完成",
+  };
+  const stBadge = $("vcRunStageBadge");
+  stBadge.textContent = stageLabels[run.stage] || run.stage;
+  stBadge.className = "badge " + (run.stage === "completed" || run.stage === "prep_ready" ? "ok" : "warn");
+
+  if (run.source) {
+    showResolvedVideoCard({
+      platform_label: run.source.platform_label,
+      title: run.source.title,
+      duration: run.media?.clip_duration || run.source.duration,
+      uploader: run.source.uploader,
+      thumbnail: run.source.thumbnail,
+      recommended_clip_start: run.media?.clip_start ?? 0,
+      recommended_clip_end: (run.media?.clip_start ?? 0) + (run.media?.clip_duration ?? 180),
+    });
+  }
+
+  const segs = run.segments || [];
+  if (!segs.length) {
+    $("vcStage2Empty").style.display = "block";
+    $("vcStage2Empty").textContent = run.error || (run.stage === "prep_running" ? "正在云端运行 UVR5 人声分离与 Faster-Whisper 识别，请稍候..." : "暂无识别出的台词。");
+    $("vcStage2Body").style.display = "none";
+  } else {
+    $("vcStage2Empty").style.display = "none";
+    $("vcStage2Body").style.display = "block";
+    $("vcVocalsPlayer").src = `/api/vclone/file/${rid}/vocals.wav?t=${ts}`;
+    $("vcBgmPlayer").src = `/api/vclone/file/${rid}/bgm.wav?t=${ts}`;
+
+    const ref = run.ref_clip || {};
+    $("vcRefPlayer").src = `/api/vclone/file/${rid}/ref_clip.wav?t=${ts}`;
+    $("vcRefTextInput").value = ref.ref_text || "";
+    $("vcRefMetaBadge").textContent = `区间 ${ref.start ?? 0}s ~ ${ref.end ?? 0}s (${ref.duration ?? 0}s)`;
+    $("vcCustomRefStart").value = ref.start ?? 0;
+    $("vcCustomRefEnd").value = ref.end ?? 6;
+
+    $("vcSegCount").textContent = segs.length;
+    const tbody = $("vcSegmentsTbody");
+    tbody.innerHTML = "";
+    const refIdxs = new Set(ref.segment_indices || []);
+
+    segs.forEach(s => {
+      const tr = document.createElement("tr");
+      tr.dataset.index = s.index;
+      tr.dataset.orig = s.orig_text || "";
+      const isRef = refIdxs.has(Number(s.index));
+      const origUrl = s.orig_clip ? `/api/vclone/file/${rid}/${s.orig_clip}` : "";
+      const ttsUrl = s.tts_clip ? `/api/vclone/file/${rid}/${s.tts_clip}?t=${ts}` : "";
+
+      let statusHtml = '<span class="hint">待配音</span>';
+      if (s.align_status === "ok") {
+        statusHtml = `<span class="badge ok">正常 (${s.tts_duration || s.aligned_duration || "-"}s)</span>`;
+      } else if (s.align_status === "stretched") {
+        statusHtml = `<span class="badge ok">对齐 ${s.atempo_ratio || 1}×</span>`;
+      } else if (s.align_status === "overflow") {
+        statusHtml = `<span class="badge warn" title="该句字数偏多，已达最大加速比">偏长 ${s.atempo_ratio || 1.35}×</span>`;
+      }
+
+      tr.innerHTML =
+        `<td><strong>${s.index}</strong></td>` +
+        `<td><div>${Number(s.start).toFixed(1)}s - ${Number(s.end).toFixed(1)}s</div><div class="hint">${Number(s.duration || (s.end - s.start)).toFixed(1)}s</div></td>` +
+        `<td>` +
+          `<div class="row" style="gap:4px;">` +
+            (origUrl ? `<button type="button" class="shrink vc-play-orig" style="padding:2px 6px;font-size:11px;">▶ 原句</button>` : "") +
+            `<button type="button" class="shrink vc-set-ref ${isRef ? 'primary' : ''}" style="padding:2px 6px;font-size:11px;">${isRef ? '当前参考' : '设为参考'}</button>` +
+          `</div>` +
+        `</td>` +
+        `<td style="color:var(--muted);">${escHtml(s.orig_text || "")}</td>` +
+        `<td><input type="text" class="vc-seg-text" value="${escHtml(s.text ?? s.orig_text ?? "")}" /></td>` +
+        `<td>` +
+          `<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">` +
+            (ttsUrl ? `<button type="button" class="shrink vc-play-tts" style="padding:2px 6px;font-size:11px;">▶ 新配音</button>` : "") +
+            statusHtml +
+          `</div>` +
+        `</td>`;
+
+      const playOrigBtn = tr.querySelector(".vc-play-orig");
+      if (playOrigBtn && origUrl) {
+        playOrigBtn.onclick = () => { const a = new Audio(origUrl); a.play(); };
+      }
+      const playTtsBtn = tr.querySelector(".vc-play-tts");
+      if (playTtsBtn && ttsUrl) {
+        playTtsBtn.onclick = () => { const a = new Audio(ttsUrl); a.play(); };
+      }
+      tr.querySelector(".vc-set-ref").onclick = () => selectSegmentAsReference(Number(s.index));
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Stage 3: Final video player & downloads
+  const comp = run.compose;
+  if (comp && comp.final_mp4) {
+    $("vcResultEmpty").style.display = "none";
+    $("vcResultBox").style.display = "block";
+    $("vcDownloadZipBtn").style.display = "inline-block";
+    $("vcDownloadZipBtn").onclick = () => window.open(`/api/vclone/download-all/${rid}`, "_blank");
+
+    $("vcResultSummary").innerHTML =
+      `《<strong>${escHtml(run.source?.title || rid)}</strong>》 · 时长 ${comp.video_duration_sec}s · ` +
+      `共对齐 ${comp.aligned_count} 句（变速微调 ${comp.stretched_count} 句，偏长 ${comp.overflow_count} 句） · ` +
+      `总 GPU 耗时 <strong>${run.total_gpu_sec || 0}s</strong>`;
+
+    $("vcFinalVideoPlayer").src = `/api/vclone/file/${rid}/${comp.final_mp4}?t=${ts}`;
+    $("vcAlignedVocalsPlayer").src = `/api/vclone/file/${rid}/${comp.new_vocals_wav}?t=${ts}`;
+    $("vcFinalMixedPlayer").src = `/api/vclone/file/${rid}/${comp.final_mixed_wav}?t=${ts}`;
+
+    $("vcDlMp4Link").href = `/api/vclone/file/${rid}/${comp.final_mp4}`;
+    $("vcDlNewVocalLink").href = `/api/vclone/file/${rid}/${comp.new_vocals_wav}`;
+    $("vcDlOrigVocalLink").href = `/api/vclone/file/${rid}/vocals.wav`;
+    $("vcDlBgmLink").href = `/api/vclone/file/${rid}/bgm.wav`;
+    $("vcDlClonedSrtLink").href = `/api/vclone/file/${rid}/${comp.cloned_srt}`;
+    $("vcDlBilingualSrtLink").href = `/api/vclone/file/${rid}/${comp.bilingual_srt}`;
+  } else {
+    $("vcResultEmpty").style.display = "block";
+    $("vcResultBox").style.display = "none";
+    $("vcDownloadZipBtn").style.display = "none";
+  }
+}
+
+async function loadVCloneHistory() {
+  const res = await fetch("/api/vclone/runs");
+  if (!res.ok) return;
+  const data = await res.json();
+  const runs = data.runs || [];
+  const box = $("vcHistoryList");
+  if (!runs.length) {
+    box.innerHTML = '<div class="hint">暂无视频克隆记录</div>';
+    return;
+  }
+  box.innerHTML = "";
+  runs.forEach(r => {
+    const div = document.createElement("div");
+    div.className = "history-item" + (vcCurrentRun && vcCurrentRun.run_id === r.run_id ? " selected" : "");
+    const stColor = r.stage === "completed" ? "var(--green)" : (r.stage?.includes("failed") ? "var(--red)" : "var(--yellow)");
+    const title = r.source?.title || r.run_id;
+    const plat = r.source?.platform_label || r.source?.platform || "";
+    div.innerHTML =
+      `<div class="row">` +
+        `<strong style="color:${stColor}">${r.stage === 'completed' ? '✔ 成片就绪' : (r.stage === 'prep_ready' ? '① 待配音' : r.stage)}</strong>` +
+        `<span class="badge">${escHtml(plat)}</span>` +
+        `<span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${escHtml(title)}</span>` +
+        `<span class="spacer"></span>` +
+        `<span class="hint">${r.created_at}</span>` +
+        `<button type="button" class="shrink danger vc-del-run" style="padding:2px 8px;font-size:12px;">删除</button>` +
+      `</div>` +
+      `<div class="hint">台词: ${(r.segments || []).length} 句 · 模式: ${escHtml(r.cosy_mode || 'zero_shot')} · GPU: ${r.total_gpu_sec || 0}s${r.used_cached_env ? ' · ⚡加速缓存' : ''}</div>`;
+
+    div.addEventListener("click", (e) => {
+      if (e.target.tagName === "BUTTON") return;
+      showVCloneRun(r);
+      loadVCloneHistory();
+    });
+    div.querySelector(".vc-del-run").addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!confirm(`确认删除视频克隆记录《${title}》？`)) return;
+      await fetch(`/api/vclone/runs/${encodeURIComponent(r.run_id)}`, { method: "DELETE" });
+      if (vcCurrentRun && vcCurrentRun.run_id === r.run_id) vcCurrentRun = null;
+      loadVCloneHistory();
+    });
+    box.appendChild(div);
+  });
+  if (!vcCurrentRun && runs.length) showVCloneRun(runs[0]);
+}
 
 async function startAccountDeploy(username, force = false) {
   deployUI = {
@@ -1625,16 +2764,53 @@ $("refreshBtn").addEventListener("click", async () => {
   }
 });
 
-// Log drawer
-$("logToggle").addEventListener("click", (e) => {
-  if (e.target.tagName === "BUTTON") return;
+// Log drawer (separate Local Console Logs & Kaggle Cloud Logs)
+let activeLogTab = "local"; // "local" | "kaggle"
+
+function syncDrawerToggleLabel() {
+  const isOpen = $("logDrawer").classList.contains("open");
+  if ($("collapseLogBtn")) $("collapseLogBtn").textContent = isOpen ? "▼ 收起" : "▲ 展开";
+}
+
+function setActiveLogTab(tab) {
+  const isOpen = $("logDrawer").classList.contains("open");
+  if (isOpen && activeLogTab === tab) {
+    $("logDrawer").classList.remove("open");
+    syncDrawerToggleLabel();
+    return;
+  }
+  activeLogTab = tab;
+  $("logTabLocalBtn").classList.toggle("primary", tab === "local");
+  $("logTabKaggleBtn").classList.toggle("primary", tab === "kaggle");
+  $("logBody").classList.toggle("active-tab", tab === "local");
+  $("kaggleLogBody").classList.toggle("active-tab", tab === "kaggle");
+  $("logDrawer").classList.add("open");
+  syncDrawerToggleLabel();
+}
+
+$("logTabLocalBtn").addEventListener("click", (e) => { e.stopPropagation(); setActiveLogTab("local"); });
+$("logTabKaggleBtn").addEventListener("click", (e) => { e.stopPropagation(); setActiveLogTab("kaggle"); });
+$("collapseLogBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
   $("logDrawer").classList.toggle("open");
+  syncDrawerToggleLabel();
+});
+
+$("logToggle").addEventListener("click", (e) => {
+  if (e.target.closest("button")) return;
+  $("logDrawer").classList.toggle("open");
+  syncDrawerToggleLabel();
 });
 $("copyLogBtn").addEventListener("click", () => {
-  navigator.clipboard.writeText($("logBody").innerText);
+  const el = activeLogTab === "kaggle" ? $("kaggleLogBody") : $("logBody");
+  navigator.clipboard.writeText(el.innerText);
 });
 $("clearLogBtn").addEventListener("click", async () => {
-  await fetch("/api/logs/clear", { method: "POST" });
+  if (activeLogTab === "kaggle") {
+    await fetch("/api/kaggle-logs/clear", { method: "POST" });
+  } else {
+    await fetch("/api/logs/clear", { method: "POST" });
+  }
 });
 
 function appendLog(entry) {
@@ -1643,13 +2819,38 @@ function appendLog(entry) {
   div.textContent = `[${entry.ts}] ${entry.text}`;
   $("logBody").appendChild(div);
   while ($("logBody").children.length > 200) $("logBody").removeChild($("logBody").firstChild);
-  $("logCount").textContent = `${$("logBody").children.length} 行`;
+  $("logCount").textContent = `${$("logBody").children.length}`;
   $("logBody").scrollTop = $("logBody").scrollHeight;
   if (deployUI.visible && deployUI.stage !== "done" && deployUI.stage !== "failed") {
     deployUI.logs.push(`[${entry.ts}] ${entry.text}`);
     if (deployUI.logs.length > 12) deployUI.logs.shift();
     renderDeployProgress();
   }
+}
+
+function appendKaggleLog(entry) {
+  const div = document.createElement("div");
+  div.className = "log-line " + (entry.level || "info");
+  div.textContent = `[${entry.ts}] ${entry.text}`;
+  $("kaggleLogBody").appendChild(div);
+  while ($("kaggleLogBody").children.length > 500) $("kaggleLogBody").removeChild($("kaggleLogBody").firstChild);
+  $("kLogCount").textContent = `${$("kaggleLogBody").children.length}`;
+  $("kaggleLogBody").scrollTop = $("kaggleLogBody").scrollHeight;
+}
+
+function renderKaggleStatusBadge(ks) {
+  const badge = $("kaggleLiveStatusBadge");
+  if (!badge || !ks) return;
+  if (!ks.slug || ks.status === "idle") {
+    badge.className = "badge";
+    badge.textContent = "Kaggle: 空闲";
+    return;
+  }
+  const st = ks.status || "unknown";
+  const ver = ks.version ? ` v${ks.version}` : "";
+  const el = ks.elapsed_sec ? ` · ${ks.elapsed_sec}s` : "";
+  badge.className = "badge " + (st === "complete" ? "ok" : (st === "error" ? "warn" : "ok"));
+  badge.textContent = `Kaggle: ${ks.slug}${ver} · ${st}${el}`;
 }
 
 async function boot() {
@@ -1659,15 +2860,23 @@ async function boot() {
   await loadCapabilities();
   await loadVoiceLibrary();
   await loadHistory();
+  await loadVCloneCapabilities();
+  await loadVCloneHistory();
 
   const ev = new EventSource("/api/events");
   ev.addEventListener("init", (e) => {
     const d = JSON.parse(e.data);
     $("logBody").innerHTML = "";
     (d.logs || []).forEach(appendLog);
+    $("kaggleLogBody").innerHTML = "";
+    (d.kaggle_logs || []).forEach(appendKaggleLog);
+    renderKaggleStatusBadge(d.kaggle_status);
   });
   ev.addEventListener("log", (e) => appendLog(JSON.parse(e.data)));
-  ev.addEventListener("logs_cleared", () => { $("logBody").innerHTML = ""; $("logCount").textContent = "0 行"; });
+  ev.addEventListener("kaggle_log", (e) => appendKaggleLog(JSON.parse(e.data)));
+  ev.addEventListener("kaggle_status", (e) => renderKaggleStatusBadge(JSON.parse(e.data)));
+  ev.addEventListener("logs_cleared", () => { $("logBody").innerHTML = ""; $("logCount").textContent = "0"; });
+  ev.addEventListener("kaggle_logs_cleared", () => { $("kaggleLogBody").innerHTML = ""; $("kLogCount").textContent = "0"; });
   ev.addEventListener("jobs_update", (e) => {
     const job = JSON.parse(e.data);
     if (currentState) currentState.active_job = job;
@@ -1702,6 +2911,20 @@ async function boot() {
     const run = JSON.parse(e.data);
     showRun(run);
     loadHistory();
+  });
+  ev.addEventListener("vclone_env_updated", (e) => {
+    const st = JSON.parse(e.data);
+    renderVCloneEnvStatus(st);
+  });
+  ev.addEventListener("vclone_updated", (e) => {
+    const run = JSON.parse(e.data);
+    showVCloneRun(run);
+    loadVCloneHistory();
+  });
+  ev.addEventListener("vclone_completed", (e) => {
+    const run = JSON.parse(e.data);
+    showVCloneRun(run);
+    loadVCloneHistory();
   });
 }
 boot();

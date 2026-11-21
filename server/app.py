@@ -1,4 +1,4 @@
-"""FastAPI application for H3 Kaggle Console (127.0.0.1:8760)."""
+"""FastAPI application for YoYo Kaggle Console (127.0.0.1:8760)."""
 
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingRes
 from pydantic import BaseModel
 
 from server.config import (
-    H3_DATASETS,
     OMNIVOICE_CAPABILITIES,
     VOICE_LIBRARY_DIR,
     VOICE_OUTPUTS_DIR,
@@ -35,7 +34,8 @@ from server.config import (
 )
 from server.jobs import JobManager, TERMINAL_STATES
 from server.kaggle_client import KaggleClient
-from server.storage import load_settings, load_voice_runs, save_settings, save_voice_runs
+from server.storage import load_settings, load_voice_runs, save_voice_runs
+from server.vclone.routes import create_vclone_router
 from server.voice_kaggle import (
     build_srt_content,
     check_instruct_warnings,
@@ -96,7 +96,8 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="H3 Kaggle Console", lifespan=lifespan)
+app = FastAPI(title="YoYo Kaggle Console", lifespan=lifespan)
+app.include_router(create_vclone_router(jobs))
 
 
 class TokenPayload(BaseModel):
@@ -120,10 +121,6 @@ class AccountSwitchPayload(BaseModel):
 
 class AccountDeployPayload(BaseModel):
     force: bool = False
-
-
-class SettingsPayload(BaseModel):
-    colab_fallback_enabled: bool = False
 
 
 class VoiceGeneratePayload(BaseModel):
@@ -168,6 +165,8 @@ async def sse_events() -> StreamingResponse:
         try:
             init_payload = {
                 "logs": jobs.get_logs(),
+                "kaggle_logs": jobs.get_kaggle_logs(),
+                "kaggle_status": jobs.get_kaggle_status(),
                 "active_job": jobs.get_active_job(),
             }
             yield f"event: init\ndata: {json.dumps(init_payload, ensure_ascii=False)}\n\n"
@@ -366,26 +365,15 @@ async def refresh_quota() -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.get("/api/datasets/status")
-async def datasets_status() -> dict[str, Any]:
-    try:
-        items = await asyncio.gather(*(client.check_dataset_status(slug) for slug in H3_DATASETS))
-        return {"datasets": list(items)}
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.post("/api/settings")
-async def update_settings(body: SettingsPayload) -> dict[str, Any]:
-    s = load_settings()
-    s["colab_fallback_enabled"] = body.colab_fallback_enabled
-    save_settings(s)
-    return s
-
-
 @app.post("/api/logs/clear")
 async def clear_logs() -> dict[str, Any]:
     jobs.clear_logs()
+    return {"ok": True}
+
+
+@app.post("/api/kaggle-logs/clear")
+async def clear_kaggle_logs() -> dict[str, Any]:
+    jobs.clear_kaggle_logs()
     return {"ok": True}
 
 

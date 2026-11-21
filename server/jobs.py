@@ -20,6 +20,14 @@ class JobManager:
         self._gpu_lock = asyncio.Lock()
         self._subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
         self._logs: deque[dict[str, Any]] = deque(maxlen=200)
+        self._kaggle_logs: deque[dict[str, Any]] = deque(maxlen=500)
+        self._kaggle_status: dict[str, Any] = {
+            "slug": "",
+            "status": "idle",
+            "version": None,
+            "elapsed_sec": 0,
+            "failure_message": "",
+        }
         self._jobs: list[dict[str, Any]] = load_jobs()
         self._active_task: asyncio.Task[None] | None = None
 
@@ -29,6 +37,45 @@ class JobManager:
     def clear_logs(self) -> None:
         self._logs.clear()
         self._broadcast("logs_cleared", {})
+
+    def get_kaggle_logs(self) -> list[dict[str, Any]]:
+        return list(self._kaggle_logs)
+
+    def get_kaggle_status(self) -> dict[str, Any]:
+        return dict(self._kaggle_status)
+
+    def clear_kaggle_logs(self) -> None:
+        self._kaggle_logs.clear()
+        self._broadcast("kaggle_logs_cleared", {})
+
+    def set_kaggle_status(
+        self,
+        *,
+        slug: str = "",
+        status: str = "idle",
+        version: int | None = None,
+        elapsed_sec: float = 0.0,
+        failure_message: str = "",
+    ) -> None:
+        self._kaggle_status = {
+            "slug": slug,
+            "status": status,
+            "version": version if version is not None else self._kaggle_status.get("version"),
+            "elapsed_sec": round(float(elapsed_sec), 1),
+            "failure_message": failure_message,
+            "updated_at": time.strftime("%H:%M:%S"),
+        }
+        self._broadcast("kaggle_status", self._kaggle_status)
+
+    def kaggle_log(self, text: str, level: str = "info") -> None:
+        clean = scrub_secrets(text)
+        entry = {
+            "ts": time.strftime("%H:%M:%S"),
+            "level": level,
+            "text": clean,
+        }
+        self._kaggle_logs.append(entry)
+        self._broadcast("kaggle_log", entry)
 
     def log(self, text: str, level: str = "info") -> None:
         clean = scrub_secrets(text)
@@ -165,14 +212,21 @@ class JobManager:
 
             kstatus = str(st.get("status", "")).lower()
             fail_msg = st.get("failureMessage") or ""
+            elapsed = round(time.time() - t0, 1)
+            self.set_kaggle_status(
+                slug=slug,
+                status=kstatus or "unknown",
+                elapsed_sec=elapsed,
+                failure_message=fail_msg,
+            )
             if kstatus != last_kstatus:
-                self.log(f"[{slug}] 状态变更 -> {kstatus} {fail_msg}".strip())
+                self.kaggle_log(f"[{slug}] 状态变更 -> {kstatus} {fail_msg}".strip())
                 last_kstatus = kstatus
 
             mapped_state = "running" if kstatus == "running" else ("queued" if kstatus == "queued" else kstatus)
             self.update_job(job_id, state=mapped_state, kaggle_status=kstatus)
 
-            if kstatus in ("complete", "error", "cancel_acknowledged"):
+            if kstatus in ("complete", "error", "cancel_acknowledged", "cancelacknowledged", "cancelled", "canceled"):
                 return kstatus
         raise TimeoutError(f"[{slug}] 轮询超时（已禁止自动重推，请检查 Kaggle 状态）。")
 

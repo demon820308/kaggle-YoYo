@@ -1,4 +1,4 @@
-"""Configuration, constants, paths, and token management for H3 Kaggle Console."""
+"""Configuration, constants, paths, and token management for YoYo Kaggle Console."""
 
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ WEB_DIR = ROOT_DIR / "web"
 VOICE_OUTPUTS_DIR = DATA_DIR / "voice_outputs"
 VOICE_LIBRARY_DIR = DATA_DIR / "voice_library"
 VIDEO_OUTPUTS_DIR = DATA_DIR / "outputs"
+VCLONE_DIR = DATA_DIR / "vclone"
+COOKIES_DIR = DATA_DIR / "cookies"
 TOKEN_FILE = DATA_DIR / "kaggle_token"
 ACCOUNTS_FILE = DATA_DIR / "kaggle_accounts.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
@@ -27,6 +29,7 @@ JOBS_FILE = DATA_DIR / "jobs.json"
 RUNS_FILE = DATA_DIR / "runs.json"
 VOICE_RUNS_FILE = DATA_DIR / "voice_runs.json"
 VOICE_LIBRARY_FILE = DATA_DIR / "voice_library.json"
+VCLONE_RUNS_FILE = DATA_DIR / "vclone_runs.json"
 
 HOST = "127.0.0.1"
 PORT = 8760
@@ -146,11 +149,66 @@ OMNIVOICE_CAPABILITIES = {
     ],
 }
 
-H3_DATASETS = [
-    "h3-models-shared",
-    "h3-models-pika",
-    "h3-models-hyperflow",
-]
+VCLONE_MAX_DURATION_SEC = 180.0
+
+VCLONE_ENV_KERNEL = {
+    "slug": "yoyo-vclone-env",
+    "title": "yoyo-vclone-env",
+    "machine_shape": "None",
+}
+
+VCLONE_PREP_KERNEL = {
+    "slug": "yoyo-vclone-prep",
+    "title": "yoyo-vclone-prep",
+    "machine_shape": OMNIVOICE_MACHINE_SHAPE,
+}
+
+VCLONE_TTS_KERNEL = {
+    "slug": "yoyo-vclone-tts",
+    "title": "yoyo-vclone-tts",
+    "machine_shape": OMNIVOICE_MACHINE_SHAPE,
+}
+
+VCLONE_CAPABILITIES = {
+    "max_duration_sec": VCLONE_MAX_DURATION_SEC,
+    "platforms": [
+        {"id": "douyin", "label": "抖音 (Douyin)"},
+        {"id": "bilibili", "label": "哔哩哔哩 (Bilibili)"},
+        {"id": "tiktok", "label": "TikTok"},
+        {"id": "youtube", "label": "YouTube"},
+        {"id": "generic", "label": "其他平台 / 通用链接"},
+    ],
+    "separator_models": [
+        {
+            "value": "UVR-MDX-NET-Inst_HQ_3.onnx",
+            "label": "UVR-MDX-NET-Inst_HQ_3 (推荐·速度快·人声干净)",
+        },
+        {
+            "value": "model_bs_roformer_ep_317_sdr_12.9755.ckpt",
+            "label": "BS-Roformer SDR 12.97 (高精分离·耗时较长)",
+        },
+    ],
+    "whisper_models": [
+        {"value": "large-v3-turbo", "label": "Faster-Whisper large-v3-turbo (推荐·快且准)"},
+        {"value": "large-v3", "label": "Faster-Whisper large-v3 (最高精度)"},
+        {"value": "medium", "label": "Faster-Whisper medium (轻量快速)"},
+    ],
+    "cosyvoice_modes": [
+        {"value": "zero_shot", "label": "标准零样本克隆 (3~12秒复刻音色与韵律)"},
+        {"value": "cross_lingual", "label": "跨语种翻译克隆 (保留原声线跨语言配音)"},
+        {"value": "instruct2", "label": "情感/风格指令克隆 (支持语气与方言控制)"},
+    ],
+    "instruct_presets": [
+        {"label": "自然口播（不加额外指令）", "instruct": ""},
+        {"label": "激情带货 / 解说", "instruct": "用激情的语气说"},
+        {"label": "温柔亲切", "instruct": "用温柔亲切的语气说"},
+        {"label": "严肃新闻 / 播音腔", "instruct": "用沉稳正式的播音语气说"},
+        {"label": "欢快活泼", "instruct": "用开心活泼的语气说"},
+        {"label": "四川话方言", "instruct": "用四川话说"},
+        {"label": "粤语方言", "instruct": "用粤语说"},
+        {"label": "东北话方言", "instruct": "用东北话说"},
+    ],
+}
 
 _SECRET_PATTERN = re.compile(r"KGAT_[A-Za-z0-9_-]{10,}")
 _USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$")
@@ -162,6 +220,8 @@ def ensure_dirs() -> None:
         VOICE_OUTPUTS_DIR,
         VOICE_LIBRARY_DIR,
         VIDEO_OUTPUTS_DIR,
+        VCLONE_DIR,
+        COOKIES_DIR,
         ASSETS_DIR / "workflows",
         ASSETS_DIR / "nodes",
         ASSETS_DIR / "refs",
