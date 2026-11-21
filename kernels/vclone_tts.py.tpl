@@ -83,9 +83,11 @@ def preload_nvidia_libs():
 smi = run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"])
 result["gpu"] = (smi.stdout or smi.stderr).strip()
 
-# 2) Discover mounted yoyo-vclone-env cache
+# 2) Discover mounted yoyo-vclone-env cache (supports v2 .tar archives & v1 unpacked layout)
 env_root = None
 env_manifest = None
+prep_cache_root = None
+tts_cache_root = None
 input_root = Path("/kaggle/input")
 if input_root.is_dir():
     for mf in input_root.rglob("vclone_env_manifest.json"):
@@ -93,10 +95,32 @@ if input_root.is_dir():
             env_manifest = json.loads(mf.read_text(encoding="utf-8"))
             env_root = mf.parent
             result["used_cached_env"] = True
-            print(f"Found cached vclone-env at {env_root}", flush=True)
+            print(f"Found cached vclone-env v{env_manifest.get('version', 1)} at {env_root}", flush=True)
             break
         except Exception:
             pass
+
+if env_root and env_manifest:
+    import tarfile
+    t_untar = time.time()
+    prep_tar_rel = env_manifest.get("prep_tar_rel")
+    if prep_tar_rel and (env_root / prep_tar_rel).is_file():
+        prep_cache_root = TMP / "env_prep"
+        prep_cache_root.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(env_root / prep_tar_rel, "r") as tf:
+            tf.extractall(prep_cache_root)
+    else:
+        prep_cache_root = env_root
+
+    tts_tar_rel = env_manifest.get("tts_tar_rel")
+    if tts_tar_rel and (env_root / tts_tar_rel).is_file():
+        tts_cache_root = TMP / "env_tts"
+        tts_cache_root.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(env_root / tts_tar_rel, "r") as tf:
+            tf.extractall(tts_cache_root)
+    else:
+        tts_cache_root = env_root
+    timings["untar_env_sec"] = round(time.time() - t_untar, 2)
 
 # 3) Install CosyVoice 2 runtime dependencies
 t0 = time.time()
@@ -106,8 +130,8 @@ needed_pkgs = [
     "inflect", "unidecode", "eng_to_ipa", "wetext", "einops",
 ]
 
-if env_root and env_manifest:
-    wheels_dir = env_root / env_manifest.get("wheels_rel", "vclone_cache/wheels")
+if prep_cache_root and env_manifest:
+    wheels_dir = prep_cache_root / env_manifest.get("wheels_rel", "vclone_cache/wheels")
     if wheels_dir.is_dir():
         r_off = run([
             sys.executable, "-m", "pip", "install", "-q",
@@ -127,6 +151,17 @@ preload_nvidia_libs()
 
 import numpy as np
 import soundfile as sf
+import torch
+
+result["torch_cuda"] = bool(torch.cuda.is_available())
+try:
+    import onnxruntime as ort
+    if hasattr(ort, "preload_dlls"):
+        ort.preload_dlls()
+    result["ort_providers"] = ort.get_available_providers()
+except Exception as ort_exc:
+    result["ort_providers"] = [f"err:{ort_exc}"]
+print("CosyVoice2 GPU check -> torch_cuda:", result["torch_cuda"], "ort_providers:", result["ort_providers"], flush=True)
 
 # 4) Decode reference audio clip
 if not REF_B64_PARTS:
@@ -147,8 +182,8 @@ if r_ff.returncode != 0 or not ref_16k_wav.is_file():
 # 5) Setup CosyVoice repo & text normalizer fallback
 t0 = time.time()
 cosy_repo = TMP / "CosyVoice"
-if env_root and env_manifest:
-    cached_repo = env_root / env_manifest.get("cosyvoice_repo_rel", "vclone_cache/CosyVoice")
+if tts_cache_root and env_manifest:
+    cached_repo = tts_cache_root / env_manifest.get("cosyvoice_repo_rel", "vclone_cache/CosyVoice")
     if (cached_repo / "cosyvoice").is_dir():
         cosy_repo = cached_repo
 
@@ -192,8 +227,8 @@ except Exception:
 
 # 6) Load CosyVoice2-0.5B model
 cosy_model_dir = TMP / "CosyVoice2-0.5B"
-if env_root and env_manifest:
-    cached_cm = env_root / env_manifest.get("cosyvoice_model_rel", "vclone_cache/models/CosyVoice2-0.5B")
+if tts_cache_root and env_manifest:
+    cached_cm = tts_cache_root / env_manifest.get("cosyvoice_model_rel", "vclone_cache/models/CosyVoice2-0.5B")
     if (cached_cm / "cosyvoice2.yaml").is_file() or (cached_cm / "cosyvoice.yaml").is_file():
         cosy_model_dir = cached_cm
 

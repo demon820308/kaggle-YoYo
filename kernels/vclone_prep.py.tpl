@@ -73,16 +73,31 @@ def fail(verdict, **extra):
     sys.exit(0)
 
 
+def get_nvidia_lib_dirs():
+    import site
+    dirs = []
+    for root in [Path(p) for p in site.getsitepackages()]:
+        for sub in root.glob("nvidia/*/lib"):
+            if sub.is_dir():
+                dirs.append(str(sub))
+        tlib = root / "torch" / "lib"
+        if tlib.is_dir():
+            dirs.append(str(tlib))
+    for sys_dir in ("/usr/local/cuda/lib64", "/usr/local/nvidia/lib64"):
+        if Path(sys_dir).is_dir():
+            dirs.append(sys_dir)
+    return dirs
+
+
 def preload_nvidia_libs():
     """Preload bundled cuDNN/cuBLAS from PyTorch/nvidia packages so CTranslate2 and ONNXRuntime find them."""
     try:
         import site
-        search_roots = [Path(p) for p in site.getsitepackages()]
-        for root in search_roots:
+        for root in [Path(p) for p in site.getsitepackages()]:
             for pattern in ("nvidia/*/lib/*.so*", "torch/lib/*.so*"):
                 for so_path in sorted(root.glob(pattern)):
                     name = so_path.name
-                    if any(k in name for k in ("libcudnn", "libcublas", "libnvrtc", "libcufft")):
+                    if any(k in name for k in ("libcudnn", "libcublas", "libnvrtc", "libcufft", "libcudart")):
                         try:
                             ctypes.CDLL(str(so_path), mode=ctypes.RTLD_GLOBAL)
                         except Exception:
@@ -95,9 +110,11 @@ def preload_nvidia_libs():
 smi = run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"])
 result["gpu"] = (smi.stdout or smi.stderr).strip()
 
-# 2) Discover mounted yoyo-vclone-env cache if available
+# 2) Discover mounted yoyo-vclone-env cache if available (supports v2 .tar archives & v1 unpacked layout)
 env_root = None
 env_manifest = None
+prep_cache_root = None
+tts_cache_root = None
 input_root = Path("/kaggle/input")
 if input_root.is_dir():
     for mf in input_root.rglob("vclone_env_manifest.json"):
@@ -105,10 +122,33 @@ if input_root.is_dir():
             env_manifest = json.loads(mf.read_text(encoding="utf-8"))
             env_root = mf.parent
             result["used_cached_env"] = True
-            print(f"Found cached vclone-env at {env_root}", flush=True)
+            print(f"Found cached vclone-env v{env_manifest.get('version', 1)} at {env_root}", flush=True)
             break
         except Exception:
             pass
+
+if env_root and env_manifest:
+    import tarfile
+    t_untar = time.time()
+    prep_tar_rel = env_manifest.get("prep_tar_rel")
+    if prep_tar_rel and (env_root / prep_tar_rel).is_file():
+        prep_cache_root = TMP / "env_prep"
+        prep_cache_root.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(env_root / prep_tar_rel, "r") as tf:
+            tf.extractall(prep_cache_root)
+    else:
+        prep_cache_root = env_root
+
+    if ONE_CLICK_TTS:
+        tts_tar_rel = env_manifest.get("tts_tar_rel")
+        if tts_tar_rel and (env_root / tts_tar_rel).is_file():
+            tts_cache_root = TMP / "env_tts"
+            tts_cache_root.mkdir(parents=True, exist_ok=True)
+            with tarfile.open(env_root / tts_tar_rel, "r") as tf:
+                tf.extractall(tts_cache_root)
+        else:
+            tts_cache_root = env_root
+    timings["untar_env_sec"] = round(time.time() - t_untar, 2)
 
 # 3) Install packages (offline wheels first if cached, then online fallback)
 t0 = time.time()
@@ -119,8 +159,8 @@ if ONE_CLICK_TTS:
         "inflect", "unidecode", "eng_to_ipa", "wetext", "modelscope", "einops",
     ])
 
-if env_root and env_manifest:
-    wheels_dir = env_root / env_manifest.get("wheels_rel", "vclone_cache/wheels")
+if prep_cache_root and env_manifest:
+    wheels_dir = prep_cache_root / env_manifest.get("wheels_rel", "vclone_cache/wheels")
     if wheels_dir.is_dir():
         r_off = run([
             sys.executable, "-m", "pip", "install", "-q",
@@ -174,8 +214,8 @@ t0 = time.time()
 uvr_model_dir = TMP / "uvr_models"
 uvr_model_dir.mkdir(parents=True, exist_ok=True)
 
-if env_root and env_manifest:
-    cached_uvr = env_root / env_manifest.get("uvr_dir_rel", "vclone_cache/models/uvr")
+if prep_cache_root and env_manifest:
+    cached_uvr = prep_cache_root / env_manifest.get("uvr_dir_rel", "vclone_cache/models/uvr")
     if cached_uvr.is_dir():
         for f in cached_uvr.iterdir():
             if f.is_file():
@@ -205,17 +245,51 @@ if not model_target.exists() and SEPARATOR_MODEL == "UVR-MDX-NET-Inst_HQ_3.onnx"
 sep_out_dir = TMP / "sep_out"
 sep_out_dir.mkdir(parents=True, exist_ok=True)
 
+# Run audio-separator in a fresh subprocess with LD_LIBRARY_PATH pointing to torch/nvidia CUDA libs
+# so onnxruntime-gpu reliably loads CUDAExecutionProvider (~10s on T4 instead of ~155s CPU fallback).
+sep_runner_script = TMP / "_run_sep.py"
+sep_runner_script.write_text(
+    f"""import json, os, sys
 try:
-    from audio_separator.separator import Separator
-    sep = Separator(
-        output_dir=str(sep_out_dir),
-        model_file_dir=str(uvr_model_dir),
-        output_format="WAV",
-    )
-    sep.load_model(model_filename=SEPARATOR_MODEL)
-    out_files = sep.separate(str(input_wav))
-except Exception as sep_exc:
-    fail("SEPARATOR_FAIL", error=str(sep_exc))
+    import onnxruntime as ort
+    if hasattr(ort, "preload_dlls"):
+        ort.preload_dlls()
+    print("ORT providers:", ort.get_available_providers(), flush=True)
+except Exception as e:
+    print("ORT probe warn:", e, flush=True)
+from audio_separator.separator import Separator
+sep = Separator(
+    output_dir={repr(str(sep_out_dir))},
+    model_file_dir={repr(str(uvr_model_dir))},
+    output_format="WAV",
+)
+sep.load_model(model_filename={repr(SEPARATOR_MODEL)})
+files = sep.separate({repr(str(input_wav))})
+print("SEP_FILES_JSON=" + json.dumps([str(x) for x in files]), flush=True)
+""",
+    encoding="utf-8",
+)
+
+sep_env = os.environ.copy()
+lib_dirs = get_nvidia_lib_dirs()
+if lib_dirs:
+    existing_ld = sep_env.get("LD_LIBRARY_PATH", "")
+    sep_env["LD_LIBRARY_PATH"] = ":".join(lib_dirs + ([existing_ld] if existing_ld else []))
+
+r_sep = subprocess.run([sys.executable, str(sep_runner_script)], env=sep_env, capture_output=True, text=True)
+print((r_sep.stdout or "")[-1200:], flush=True)
+if r_sep.stderr:
+    print((r_sep.stderr or "")[-800:], flush=True)
+
+out_files = []
+for line in (r_sep.stdout or "").splitlines():
+    if line.startswith("ORT providers:"):
+        result["ort_providers"] = line.split(":", 1)[1].strip()
+    elif line.startswith("SEP_FILES_JSON="):
+        out_files = json.loads(line.split("=", 1)[1])
+
+if r_sep.returncode != 0 or not out_files:
+    fail("SEPARATOR_FAIL", error=(r_sep.stderr or r_sep.stdout or "Separator subprocess failed")[-1500:])
 
 vocal_raw = None
 bgm_raw = None
@@ -264,8 +338,8 @@ t0 = time.time()
 whisper_path_or_id = WHISPER_MODEL
 if WHISPER_MODEL == "large-v3-turbo":
     whisper_path_or_id = "deepdml/faster-whisper-large-v3-turbo-ct2"
-    if env_root and env_manifest:
-        cached_w = env_root / env_manifest.get("whisper_dir_rel", "vclone_cache/models/whisper_large_v3_turbo")
+    if prep_cache_root and env_manifest:
+        cached_w = prep_cache_root / env_manifest.get("whisper_dir_rel", "vclone_cache/models/whisper_large_v3_turbo")
         if (cached_w / "model.bin").is_file():
             whisper_path_or_id = str(cached_w)
 
@@ -431,11 +505,20 @@ if ONE_CLICK_TTS:
     t_tts0 = time.time()
     import torch
     torch.cuda.empty_cache()
+    result["torch_cuda"] = bool(torch.cuda.is_available())
+    try:
+        import onnxruntime as ort
+        if hasattr(ort, "preload_dlls"):
+            ort.preload_dlls()
+        result["ort_providers_tts"] = ort.get_available_providers()
+    except Exception as ort_exc:
+        result["ort_providers_tts"] = [f"err:{ort_exc}"]
+    print("One-click CosyVoice2 GPU check -> torch_cuda:", result["torch_cuda"], "ort_providers:", result["ort_providers_tts"], flush=True)
 
     # Locate or clone CosyVoice repo
     cosy_repo = TMP / "CosyVoice"
-    if env_root and env_manifest:
-        cached_repo = env_root / env_manifest.get("cosyvoice_repo_rel", "vclone_cache/CosyVoice")
+    if tts_cache_root and env_manifest:
+        cached_repo = tts_cache_root / env_manifest.get("cosyvoice_repo_rel", "vclone_cache/CosyVoice")
         if cached_repo.is_dir():
             cosy_repo = cached_repo
     if not (cosy_repo / "cosyvoice").is_dir():
@@ -477,8 +560,8 @@ if ONE_CLICK_TTS:
 
     # Locate or download CosyVoice2-0.5B weights
     cosy_model_dir = TMP / "CosyVoice2-0.5B"
-    if env_root and env_manifest:
-        cached_cm = env_root / env_manifest.get("cosyvoice_model_rel", "vclone_cache/models/CosyVoice2-0.5B")
+    if tts_cache_root and env_manifest:
+        cached_cm = tts_cache_root / env_manifest.get("cosyvoice_model_rel", "vclone_cache/models/CosyVoice2-0.5B")
         if (cached_cm / "cosyvoice2.yaml").is_file() or (cached_cm / "cosyvoice.yaml").is_file():
             cosy_model_dir = cached_cm
 

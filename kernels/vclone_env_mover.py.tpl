@@ -216,23 +216,46 @@ if not cosy_ok:
 timings["cosyvoice_model_sec"] = round(time.time() - t0, 1)
 result["cached_items"]["cosyvoice_model"] = "CosyVoice2-0.5B"
 
-# Write manifest for GPU kernels to discover automatically under /kaggle/input
+# Write manifest and pack into two fast uncompressed .tar archives (3 files total instead of 451+)
+t_tar = time.time()
+prep_tar_path = WORK / "vclone_prep_env.tar"
+tts_tar_path = WORK / "vclone_tts_env.tar"
+
+import tarfile
+
+with tarfile.open(prep_tar_path, "w") as tf:
+    tf.add(WHEELS_DIR, arcname="wheels")
+    tf.add(UVR_DIR, arcname="models/uvr")
+    tf.add(WHISPER_DIR, arcname="models/whisper_large_v3_turbo")
+
+with tarfile.open(tts_tar_path, "w") as tf:
+    tf.add(COSY_REPO_DIR, arcname="CosyVoice")
+    tf.add(COSY_MODEL_DIR, arcname="models/CosyVoice2-0.5B")
+
+# Remove unpacked cache directory so /kaggle/working only holds the 2 .tar files + manifest + result.json
+shutil.rmtree(CACHE, ignore_errors=True)
+timings["tar_pack_sec"] = round(time.time() - t_tar, 1)
+
 manifest = {
-    "version": 1,
+    "version": 2,
     "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     "python_version": sys.version.split()[0],
-    "wheels_rel": "vclone_cache/wheels",
-    "cosyvoice_repo_rel": "vclone_cache/CosyVoice",
-    "uvr_dir_rel": "vclone_cache/models/uvr",
-    "whisper_dir_rel": "vclone_cache/models/whisper_large_v3_turbo",
-    "cosyvoice_model_rel": "vclone_cache/models/CosyVoice2-0.5B",
+    "prep_tar_rel": "vclone_prep_env.tar",
+    "tts_tar_rel": "vclone_tts_env.tar",
+    "wheels_rel": "wheels",
+    "cosyvoice_repo_rel": "CosyVoice",
+    "uvr_dir_rel": "models/uvr",
+    "whisper_dir_rel": "models/whisper_large_v3_turbo",
+    "cosyvoice_model_rel": "models/CosyVoice2-0.5B",
 }
 (WORK / "vclone_env_manifest.json").write_text(
     json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
 )
 
-total_bytes = sum(p.stat().st_size for p in CACHE.rglob("*") if p.is_file())
+total_bytes = prep_tar_path.stat().st_size + tts_tar_path.stat().st_size
 result["total_cache_gb"] = round(total_bytes / (1024 ** 3), 2)
+result["prep_tar_gb"] = round(prep_tar_path.stat().st_size / (1024 ** 3), 2)
+result["tts_tar_gb"] = round(tts_tar_path.stat().st_size / (1024 ** 3), 2)
 result["verdict"] = "ENV_OK"
 write_result()
 print("DONE ENV_OK", flush=True)
